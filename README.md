@@ -1,0 +1,119 @@
+# Skillvesta On-Chain Learning Platform
+
+- `MembershipPass1155`: USDC-gated access passes per course
+- `SplitPayout`: non-custodial revenue sharing for collaborators
+- `Badge1155`: soulbound proof-of-learning badges
+- `Registrar`: one-transaction course creation that wires everything together
+
+## Features
+
+- Smart Wallet connect flow powered by `@coinbase/onchainkit`
+- Basename-aware identity chips across posts, comments, and membership lists
+- Wallet-backed Convex auth: user profiles keyed by wallet address
+- Course access and payouts fully on-chain (USDC on Base)
+- Production-ready Hardhat workspace under `blockchain/` powering the contract
+  suite
+
+## Prerequisites
+
+- Node.js ≥ 18
+- A Convex project (`npx convex dev` will prompt you to create or link one)
+- A Coinbase Developer Platform or Quickstart API key for OnchainKit
+- A treasury wallet on Base (test with Base Sepolia) holding or receiving USDC
+
+## Installation
+
+```bash
+git clone <this repo>
+cd skillvesta
+npm install
+```
+
+## Environment Variables
+
+Create `.env.local` in the project root. The app reads the following keys:
+
+```env
+# Convex
+NEXT_PUBLIC_CONVEX_URL="https://<your-convex-deployment>.convex.cloud"
+
+# Coinbase / OnchainKit
+NEXT_PUBLIC_ONCHAINKIT_API_KEY="ck_live_or_test_key"
+NEXT_PUBLIC_BASE_CHAIN_ID="84532"                # 8453 for Base mainnet, 84532 for Base Sepolia
+NEXT_PUBLIC_BASE_RPC_URL="https://sepolia.base.org"  # optional, overrides default RPC
+
+# Contracts & USDC routing
+NEXT_PUBLIC_USDC_CONTRACT_ADDRESS="0xd9aAEc86B65D86f6A7B5b1b0c42FFA531710b6CA" # Base Sepolia
+NEXT_PUBLIC_PLATFORM_TREASURY_ADDRESS="0xYourTreasuryWallet"
+NEXT_PUBLIC_MEMBERSHIP_CONTRACT_ADDRESS="0xYourMembershipPass1155"
+NEXT_PUBLIC_BADGE_CONTRACT_ADDRESS="0xYourBadge1155"
+NEXT_PUBLIC_REGISTRAR_CONTRACT_ADDRESS="0xYourRegistrar"
+```
+
+> **Tip:** When deploying on Base mainnet swap the chain id (8453) and USDC
+> contract address to the Base mainnet values.
+
+If you have not initialised Convex locally, run `npx convex dev` once so
+`convex/` can talk to your deployment and regenerate `_generated/` types.
+
+## Scripts
+
+- `npm run dev` – start Next.js in development mode
+- `npx convex dev` – run Convex locally (required for live backend)
+- `npm run build` / `npm run start` – production build & serve
+- `npm run lint` – lint the codebase
+
+## On-chain Course Flow
+
+1. Connect a wallet through the header menu (Coinbase Smart Wallet modal).
+2. Creators call `Registrar.registerCourse` (via dashboard UI or script). This
+   deploys a dedicated `SplitPayout` and registers pricing in
+   `MembershipPass1155`.
+3. Learners purchase or renew passes through the on-site marketplace. The
+   marketplace routes USDC, enforces cooldowns/fees, and mints through
+   `MembershipPass1155`.
+4. Collaborators withdraw their share using `SplitPayout.release`.
+5. When a learner completes a course, the platform mints a non-transferable
+   badge via `Badge1155`.
+
+## Solidity Workspace
+
+The `blockchain/` directory contains the Hardhat project:
+
+- `contracts/MembershipPass1155.sol` – ERC-1155 course passes
+- `contracts/SplitPayout.sol` – pull-based USDC splitter
+- `contracts/Badge1155.sol` – soulbound completion badges
+- `contracts/Registrar.sol` – deploys splitters and registers courses
+- `contracts/MembershipMarketplace.sol` – primary/secondary marketplace for memberships
+
+Compile with `cd blockchain && npx hardhat compile`. The `scripts/` folder can
+host deployment scripts; see Hardhat docs for custom networks. Configure `.env`
+in `blockchain/` with `PRIVATE_KEY`, `BASE_SEPOLIA_RPC_URL`, etc. before
+deploying.
+
+Deployment happens in a specific order so the later contracts know about the
+earlier ones. Run the scripts in this sequence when bootstrapping a new
+environment:
+
+1. `deployMembershipPass.ts` – deploys `MembershipPass1155`
+2. `deployBadge1155.ts` – deploys `Badge1155`
+3. `deployRegistrar.ts` – deploys `Registrar` and wires it to the membership contract
+4. `deployMarketplace.ts` – deploys `MembershipMarketplace` and grants marketplace roles
+
+Each script prints the freshly deployed address. Copy those addresses straight
+into `blockchain/.env` (`MEMBERSHIP_CONTRACT_ADDRESS`,
+`BADGE_CONTRACT_ADDRESS`, `REGISTRAR_CONTRACT_ADDRESS`) so the workspace can
+attach to existing instances instead of redeploying. Mirror the same values
+into the web app’s `.env.local` under the `NEXT_PUBLIC_*` keys (including
+`NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS`) so the frontend points at the
+deployed contracts.
+
+## Notes & Next Steps
+
+- Learners need USDC and gas; add paymaster or Coinbase Checkout later if
+  needed.
+- Grant the Registrar contract the `REGISTRAR_ROLE` in `MembershipPass1155`
+  after deployment so it can register courses.
+- When shipping to mainnet, double-check all on-chain addresses in `.env.local`.
+
+Happy building on Base!
