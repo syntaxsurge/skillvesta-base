@@ -8,7 +8,7 @@ import { useQuery } from 'convex/react'
 import { ChevronDown, Compass, Plus } from 'lucide-react'
 import { useAccount } from 'wagmi'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Popover,
   PopoverContent,
@@ -39,7 +39,7 @@ export function GroupSwitcher() {
   ) as Array<Doc<'groups'>> | undefined
 
   const handleSelect = (groupId: Id<'groups'>) => {
-    router.push(`/${groupId}`)
+    router.push(`/${groupId}/about`)
     setOpen(false)
   }
 
@@ -53,6 +53,12 @@ export function GroupSwitcher() {
           {activeGroup ? (
             <>
               <Avatar className='h-8 w-8'>
+                {activeGroup.thumbnailUrl && (
+                  <AvatarImage
+                    src={activeGroup.thumbnailUrl}
+                    alt={`${activeGroup.name} thumbnail`}
+                  />
+                )}
                 <AvatarFallback>
                   {activeGroup.name?.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
@@ -93,6 +99,11 @@ export function GroupSwitcher() {
           <p className='px-2 text-xs font-semibold uppercase text-muted-foreground'>
             My groups
           </p>
+          {(!ownedGroups || ownedGroups.length === 0) && (
+            <p className='px-2 text-xs text-muted-foreground'>
+              You have no groups yet.
+            </p>
+          )}
           {(ownedGroups ?? []).map(group => (
             <button
               type='button'
@@ -101,6 +112,12 @@ export function GroupSwitcher() {
               className='flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted'
             >
               <Avatar className='h-7 w-7'>
+                {group.thumbnailUrl && (
+                  <AvatarImage
+                    src={group.thumbnailUrl}
+                    alt={`${group.name} thumbnail`}
+                  />
+                )}
                 <AvatarFallback>
                   {group.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>

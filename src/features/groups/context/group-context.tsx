@@ -17,7 +17,16 @@ function normalizeEndsOn(value: number | undefined) {
 
 type GroupContextValue = {
   group: Doc<'groups'>
+  owner: Doc<'users'> | null
+  memberCount: number
   isOwner: boolean
+  isMember: boolean
+  access: {
+    about: boolean
+    feed: boolean
+    classroom: boolean
+    members: boolean
+  }
   currentUser: Doc<'users'> | null
 }
 
@@ -44,27 +53,30 @@ export function GroupProvider({
 }: GroupProviderProps) {
   const router = useRouter()
   const { currentUser } = useCurrentUser()
-  const group = useQuery(api.groups.get, { id: groupId })
+  const viewerState = useQuery(api.groups.viewer, {
+    groupId,
+    viewerId: currentUser?._id
+  })
 
   useEffect(() => {
-    if (group === null) {
+    if (viewerState === null) {
       router.replace('/')
     }
-  }, [group, router])
+  }, [viewerState, router])
 
   const result = useMemo<
     | { status: 'loading' | 'missing' | 'expired' }
     | { status: 'ready'; value: GroupContextValue }
   >(() => {
-    if (group === undefined || currentUser === undefined) {
+    if (viewerState === undefined || currentUser === undefined) {
       return { status: 'loading' as const }
     }
 
-    if (group === null) {
+    if (viewerState === null) {
       return { status: 'missing' as const }
     }
 
-    const normalizedEndsOn = normalizeEndsOn(group.endsOn)
+    const normalizedEndsOn = normalizeEndsOn(viewerState.group.endsOn)
     const subscriptionActive =
       typeof normalizedEndsOn === 'number'
         ? normalizedEndsOn >= Date.now()
@@ -77,12 +89,26 @@ export function GroupProvider({
     return {
       status: 'ready' as const,
       value: {
-        group,
+        group: {
+          ...viewerState.group,
+          tags: viewerState.group.tags ?? [],
+          galleryUrls: viewerState.group.galleryUrls ?? [],
+          visibility:
+            viewerState.group.visibility ??
+            ('private' as 'private' | 'public'),
+          billingCadence:
+            viewerState.group.billingCadence ??
+            (viewerState.group.price > 0 ? 'monthly' : 'free')
+        },
+        owner: viewerState.owner,
+        memberCount: viewerState.memberCount ?? viewerState.group.memberNumber,
         currentUser: currentUser ?? null,
-        isOwner: currentUser?._id === group.ownerId
+        isOwner: viewerState.viewer.isOwner,
+        isMember: viewerState.viewer.isMember,
+        access: viewerState.viewer.canAccess
       }
     }
-  }, [currentUser, group])
+  }, [currentUser, viewerState])
 
   if (result.status !== 'ready') {
     if (result.status === 'expired') {

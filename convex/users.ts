@@ -77,5 +77,9 @@ export const addToGroup = mutation({
       userId: member._id,
       groupId
     })
+
+    await ctx.db.patch(groupId, {
+      memberNumber: (group.memberNumber ?? 0) + 1
+    })
   }
 })

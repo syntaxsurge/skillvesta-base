@@ -1,16 +1,29 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { erc20Abi } from 'viem'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 
 import { Logo } from '@/components/layout/logo'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/convex/_generated/api'
 import { PLATFORM_TREASURY_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/config'
 import {
@@ -19,21 +32,84 @@ import {
 } from '@/lib/pricing'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
-const Create = () => {
+const createGroupSchema = z
+  .object({
+    name: z.string().min(2, 'Group name is required').max(80),
+    shortDescription: z
+      .string()
+      .min(20, 'Describe the group in at least 20 characters')
+      .max(200, 'Keep the summary under 200 characters'),
+  aboutUrl: z
+    .string()
+    .trim()
+    .url('Enter a valid URL')
+    .optional()
+    .or(z.literal('')),
+  thumbnailUrl: z
+    .string()
+    .trim()
+    .url('Enter a valid image URL')
+    .optional()
+    .or(z.literal('')),
+    galleryUrls: z.string().optional(),
+    tags: z.string().optional(),
+    visibility: z.enum(['public', 'private']).default('private'),
+    billingCadence: z.enum(['free', 'monthly']).default('free'),
+    price: z.string().optional()
+  })
+  .superRefine((data, ctx) => {
+    if (data.billingCadence === 'monthly') {
+      if (!data.price || data.price.trim() === '') {
+        ctx.addIssue({
+          path: ['price'],
+          code: z.ZodIssueCode.custom,
+          message: 'Monthly pricing is required'
+        })
+      } else if (Number.isNaN(Number(data.price))) {
+        ctx.addIssue({
+          path: ['price'],
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a valid number'
+        })
+      } else if (Number(data.price) <= 0) {
+        ctx.addIssue({
+          path: ['price'],
+          code: z.ZodIssueCode.custom,
+          message: 'Price must be greater than zero'
+        })
+      }
+    }
+  })
+
+type CreateGroupFormValues = z.infer<typeof createGroupSchema>
+
+const DEFAULT_VALUES: CreateGroupFormValues = {
+  name: '',
+  shortDescription: '',
+  aboutUrl: '',
+  thumbnailUrl: '',
+  galleryUrls: '',
+  tags: '',
+  visibility: 'private',
+  billingCadence: 'free',
+  price: ''
+}
+
+export default function Create() {
   const router = useRouter()
   const { address } = useAccount()
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const createGroup = useMutation(api.groups.create)
 
-  const [name, setName] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const form = useForm<CreateGroupFormValues>({
+    resolver: zodResolver(createGroupSchema),
+    defaultValues: DEFAULT_VALUES
+  })
 
-  const treasuryAddress = PLATFORM_TREASURY_ADDRESS as `0x${string}` | ''
-  const usdcTokenAddress = USDC_CONTRACT_ADDRESS as `0x${string}`
-  const paymentAmount = SUBSCRIPTION_PRICE_AMOUNT
+  const isProcessing = form.formState.isSubmitting
 
-  const handleCreate = async () => {
+  const handleSubmit = async (values: CreateGroupFormValues) => {
     let txHash: `0x${string}` | null = null
 
     if (!address) {
@@ -41,10 +117,8 @@ const Create = () => {
       return
     }
 
-    if (!name.trim()) {
-      toast.error('Group name is required')
-      return
-    }
+    const treasuryAddress = PLATFORM_TREASURY_ADDRESS as `0x${string}` | ''
+    const usdcTokenAddress = USDC_CONTRACT_ADDRESS as `0x${string}`
 
     if (!treasuryAddress) {
       toast.error('Treasury address not configured')
@@ -57,8 +131,6 @@ const Create = () => {
     }
 
     try {
-      setIsSubmitting(true)
-
       const balance = (await publicClient.readContract({
         address: usdcTokenAddress,
         abi: erc20Abi,
@@ -66,7 +138,7 @@ const Create = () => {
         args: [address]
       })) as bigint
 
-      if (balance < paymentAmount) {
+      if (balance < SUBSCRIPTION_PRICE_AMOUNT) {
         toast.error(
           `Insufficient USDC balance. You need ${SUBSCRIPTION_PRICE_LABEL}.`
         )
@@ -77,63 +149,274 @@ const Create = () => {
         address: usdcTokenAddress,
         abi: erc20Abi,
         functionName: 'transfer',
-        args: [treasuryAddress, paymentAmount]
+        args: [treasuryAddress, SUBSCRIPTION_PRICE_AMOUNT]
       })
-      txHash = hash
 
+      txHash = hash
       await publicClient.waitForTransactionReceipt({ hash })
+
+      const formattedPrice =
+        values.billingCadence === 'monthly' && values.price
+          ? Math.max(0, Number(values.price))
+          : 0
+
+      const gallery = values.galleryUrls
+        ?.split('\n')
+        .map(url => url.trim())
+        .filter(Boolean)
+
+      const tags = values.tags
+        ?.split(',')
+        .map(tag => tag.trim().toLowerCase())
+        .filter(Boolean)
 
       const groupId = await createGroup({
         ownerAddress: address,
-        name
+        name: values.name.trim(),
+        description: undefined,
+        shortDescription: values.shortDescription.trim(),
+        aboutUrl: values.aboutUrl?.trim() || undefined,
+        thumbnailUrl: values.thumbnailUrl?.trim() || undefined,
+        galleryUrls: gallery,
+        tags,
+        visibility: values.visibility,
+        billingCadence:
+          formattedPrice > 0 ? 'monthly' : values.billingCadence,
+        price: formattedPrice
       })
 
       toast.success('Your group is live!')
-      router.push(`/${groupId}`)
+      router.push(`/${groupId}/about`)
     } catch (error: any) {
       console.error('Failed to complete group creation', error)
       const message =
         txHash !== null
-          ? 'Group created payment succeeded but the finalization failed. Please refresh — your group may appear shortly.'
+          ? 'Group creation payment succeeded but the finalization failed. Please refresh — your group may appear shortly.'
           : 'Payment failed. Please try again.'
       toast.error(message)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   return (
-    <div className='flex h-full items-center justify-center text-xl'>
-      <div className='flex h-[450px] max-w-[550px] flex-col justify-between'>
+    <div className='grid gap-10 lg:grid-cols-[minmax(0,480px)_minmax(0,520px)]'>
+      <div className='space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm'>
         <Logo />
-        <p className='font-bold'>
-          🌟 Empower your community and generate income online effortlessly.
-        </p>
-        <p>🚀 Drive exceptional engagement</p>
-        <p>💖 Set up seamlessly</p>
-        <p>😄 Enjoy a delightful user experience</p>
-        <p>💸 Monetize through Base-native membership fees</p>
-        <p>📱 Accessible via iOS and Android apps</p>
-        <p>🌍 Connect with millions of daily users around the globe</p>
+        <div className='space-y-2'>
+          <h1 className='text-2xl font-semibold text-foreground'>
+            Launch your community
+          </h1>
+          <p className='text-sm text-muted-foreground'>
+            {SUBSCRIPTION_PRICE_LABEL}. Cancel anytime hassle-free. Access all features with unlimited usage and no hidden charges.
+          </p>
+        </div>
+
+        <ul className='space-y-2 text-sm text-muted-foreground'>
+          <li>🚀 Drive exceptional engagement</li>
+          <li>💖 Set up seamlessly</li>
+          <li>😄 Offer a delightful user experience</li>
+          <li>💸 Monetize through Base-native membership fees</li>
+          <li>📱 Accessible via iOS and Android apps</li>
+          <li>🌍 Connect with members around the globe</li>
+        </ul>
       </div>
 
-      <div className='flex h-[450px] max-w-[550px] flex-col justify-between rounded-lg p-16 shadow-xl'>
-        <h2 className='font-bold'>Create a group</h2>
-        <p className='text-sm'>
-          {SUBSCRIPTION_PRICE_LABEL}. Cancel anytime hassle-free. Access all
-          features with unlimited usage and no hidden charges.
-        </p>
-        <Input
-          placeholder='Group name'
-          value={name}
-          onChange={e => setName(e.target.value)}
-        />
-        <Button onClick={handleCreate} disabled={isSubmitting}>
-          {isSubmitting ? 'Processing...' : 'Create'}
-        </Button>
+      <div className='rounded-2xl border border-border bg-card p-8 shadow-sm'>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-6'>
+            <div className='space-y-4'>
+              <FormField
+                control={form.control}
+                name='name'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Group name</FormLabel>
+                    <FormControl>
+                      <Input placeholder='Self Inquiry Support Group' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='shortDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tagline</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder='Share what members will experience in two sentences.'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className='grid gap-4 md:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='visibility'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Visibility</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Select visibility' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='public'>Public</SelectItem>
+                          <SelectItem value='private'>Private</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Public groups let anyone browse your classroom and feed. Private groups gate content to members.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='billingCadence'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Membership</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={value => {
+                          field.onChange(value)
+                          if (value === 'free') {
+                            form.setValue('price', '')
+                          }
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Choose pricing' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='free'>Free for members</SelectItem>
+                          <SelectItem value='monthly'>Paid subscription</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose whether members pay a monthly USDC subscription to join.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {form.watch('billingCadence') === 'monthly' && (
+                <FormField
+                  control={form.control}
+                  name='price'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Monthly price (USDC)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min='0'
+                          step='0.01'
+                          placeholder='49'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Members will pay this amount in USDC when they join.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name='thumbnailUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Thumbnail image URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder='https://...' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='aboutUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Intro video URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder='https://youtube.com/watch?v=...' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Supports YouTube, Vimeo, or direct video links.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='galleryUrls'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Gallery assets</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder={'Add one URL per line to feature additional images or videos.'}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='tags'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tags</FormLabel>
+                    <FormControl>
+                      <Input placeholder='community, mindset, health' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Separate tags with commas to help members discover your group.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Button type='submit' disabled={isProcessing} className='w-full'>
+              {isProcessing ? 'Processing...' : 'Create group'}
+            </Button>
+          </form>
+        </Form>
       </div>
     </div>
   )
 }
-
-export default Create

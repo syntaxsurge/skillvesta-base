@@ -14,6 +14,15 @@ export default defineSchema({
     description: v.optional(v.string()),
     shortDescription: v.optional(v.string()),
     aboutUrl: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    galleryUrls: v.optional(v.array(v.string())),
+    tags: v.optional(v.array(v.string())),
+    visibility: v.optional(
+      v.union(v.literal('public'), v.literal('private'))
+    ),
+    billingCadence: v.optional(
+      v.union(v.literal('free'), v.literal('monthly'))
+    ),
     ownerId: v.id('users'),
     price: v.number(),
     memberNumber: v.number(),

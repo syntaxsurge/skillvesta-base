@@ -101,18 +101,24 @@ export function MarketplaceShell() {
 
   const readOnlyMarketplace = useMemo(() => {
     if (!publicClient || !marketplaceAddress) return null
-    return new MarketplaceService({ publicClient, address: marketplaceAddress })
+    return new MarketplaceService({
+      publicClient: publicClient as any,
+      address: marketplaceAddress
+    })
   }, [publicClient, marketplaceAddress])
 
   const readOnlyMembership = useMemo(() => {
     if (!publicClient || !membershipAddress) return null
-    return new MembershipPassService({ publicClient, address: membershipAddress })
+    return new MembershipPassService({
+      publicClient: publicClient as any,
+      address: membershipAddress
+    })
   }, [publicClient, membershipAddress])
 
   const writableMarketplace = useMemo(() => {
     if (!publicClient || !walletClient || !marketplaceAddress || !address) return null
     return new MarketplaceService({
-      publicClient,
+      publicClient: publicClient as any,
       walletClient,
       account: address,
       address: marketplaceAddress
@@ -122,7 +128,7 @@ export function MarketplaceShell() {
   const writableMembership = useMemo(() => {
     if (!publicClient || !walletClient || !membershipAddress || !address) return null
     return new MembershipPassService({
-      publicClient,
+      publicClient: publicClient as any,
       walletClient,
       account: address,
       address: membershipAddress
