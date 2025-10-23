@@ -68,7 +68,7 @@ export function GroupProvider({
     const subscriptionActive =
       typeof normalizedEndsOn === 'number'
         ? normalizedEndsOn >= Date.now()
-        : false
+        : true
 
     if (!subscriptionActive) {
       return { status: 'expired' as const }

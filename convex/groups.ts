@@ -8,6 +8,8 @@ function normalizeTimestamp(timestamp: number) {
   return timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp
 }
 
+const DEFAULT_SUBSCRIPTION_DURATION_MS = 30 * 24 * 60 * 60 * 1000
+
 export const create = mutation({
   args: {
     ownerAddress: v.string(),
@@ -16,11 +18,13 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const owner = await requireUserByWallet(ctx, args.ownerAddress)
+    const now = Date.now()
 
     const groupId = await ctx.db.insert('groups', {
       name: args.name,
       description: args.description,
       ownerId: owner._id,
+      endsOn: now + DEFAULT_SUBSCRIPTION_DURATION_MS,
       price: 0,
       memberNumber: 1
     })
