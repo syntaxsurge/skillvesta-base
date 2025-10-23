@@ -243,27 +243,42 @@ export function MarketplaceShell() {
     })
   }, [data, filters])
 
-  const listableCourses = useMemo(
-    () =>
-      (data ?? []).filter(course => course.user?.hasPass && course.user.canTransfer),
+  const ownedCourses = useMemo(
+    () => (data ?? []).filter(course => course.user?.hasPass),
     [data]
   )
-  const firstListableCourse = listableCourses[0]
+  const preferredCourse = useMemo(
+    () =>
+      ownedCourses.find(course => course.user?.canTransfer) ?? ownedCourses[0],
+    [ownedCourses]
+  )
 
   const contractsConfigured = Boolean(marketplaceAddress && membershipAddress)
 
   const openListDialog = (course: MarketplaceCourse) => {
+    if (course.user?.hasPass && course.user.canTransfer === false) {
+      const availableAt = course.user.transferAvailableAt
+      const availabilityLabel =
+        availableAt === 0n
+          ? 'soon'
+          : formatTimestampRelative(availableAt)
+      toast.info(
+        availableAt === 0n
+          ? 'Transfer cooldown is still settling. Try again shortly.'
+          : `Transfer cooldown ends ${availabilityLabel}. You can prepare your listing details now.`
+      )
+    }
     setListDialog({ open: true, course })
   }
 
   const closeListDialog = () => setListDialog({ open: false })
 
   const handleListFromHero = () => {
-    if (!firstListableCourse) {
-      toast.info('Mint a membership or wait for the transfer cooldown to end before listing.')
+    if (!preferredCourse) {
+      toast.info('Mint a membership pass before listing.')
       return
     }
-    openListDialog(firstListableCourse)
+    openListDialog(preferredCourse)
   }
 
   const handlePrimaryPurchase = async (course: MarketplaceCourse) => {
@@ -343,6 +358,20 @@ export function MarketplaceShell() {
       return
     }
 
+    if (payload.course.user && !payload.course.user.canTransfer) {
+      const availableAt = payload.course.user.transferAvailableAt
+      const availabilityLabel =
+        availableAt === 0n
+          ? 'soon'
+          : formatTimestampRelative(availableAt)
+      toast.info(
+        availableAt === 0n
+          ? 'Transfer cooldown is still settling. Try again shortly.'
+          : `Transfer cooldown ends ${availabilityLabel}.`
+      )
+      return
+    }
+
     try {
       const priceAmount = parseUnits(payload.price, 6)
       const approvalGranted = await writableMembership.isApprovedForAll(
@@ -389,7 +418,7 @@ export function MarketplaceShell() {
     <section className='mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12'>
       <Hero
         listingCount={data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0}
-        canList={Boolean(firstListableCourse)}
+        canList={ownedCourses.length > 0}
         onListPass={handleListFromHero}
       />
 
@@ -451,7 +480,7 @@ export function MarketplaceShell() {
         state={listDialog}
         onClose={closeListDialog}
         onSubmit={handleCreateListing}
-        eligibleCourses={listableCourses}
+        eligibleCourses={ownedCourses}
       />
     </section>
   )
@@ -487,7 +516,7 @@ function Hero({
           </Button>
           {!canList && (
             <p className='text-xs text-slate-200/80'>
-              Hold an active pass with an unlocked transfer window to list it.
+              Mint or purchase a pass to unlock listing.
             </p>
           )}
         </div>
@@ -591,11 +620,11 @@ function CourseCard({
       : formatTimestampRelative(userState.transferAvailableAt)
     : '—'
   const userExpiryLabel = userState?.hasPass ? formatTimestampRelative(userState.expiresAt) : '—'
-  const listDisabledReason = !userState?.hasPass
+  const listTooltip = !userHasPass
     ? 'Mint a membership pass before listing.'
-    : !userState.canTransfer
-    ? 'Listing unlocks after the transfer cooldown ends.'
-    : ''
+    : userState && !userState.canTransfer
+      ? `Transfer cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}`
+      : undefined
 
   return (
     <div className='flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/80 shadow-sm backdrop-blur'>
@@ -680,8 +709,8 @@ function CourseCard({
           <Button
             className='flex-1'
             variant='outline'
-            disabled={!userHasPass || !course.user?.canTransfer}
-            title={listDisabledReason || undefined}
+            disabled={!userHasPass}
+            title={listTooltip}
             onClick={() => onList(course)}
           >
             List pass

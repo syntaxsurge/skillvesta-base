@@ -2,16 +2,17 @@
 
 import { useMemo } from 'react'
 
-import { CreditCard, Globe, Lock, Users } from 'lucide-react'
+import { Calendar, CreditCard, Globe, Lock, Users } from 'lucide-react'
 
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
 import { GroupSidebar } from './group-sidebar'
 import { useGroupContext } from '../context/group-context'
 import { formatGroupPriceLabel } from '../utils/price'
+import { formatTimestampRelative } from '@/lib/time'
 
 export function GroupAboutSection() {
-  const { group, owner, isOwner, memberCount } = useGroupContext()
+  const { group, owner, isOwner, memberCount, membership } = useGroupContext()
 
   const mediaSources = useMemo(() => {
     const sources: string[] = []
@@ -44,6 +45,24 @@ export function GroupAboutSection() {
     (owner?.walletAddress
       ? `${owner.walletAddress.slice(0, 6)}...${owner.walletAddress.slice(-4)}`
       : 'Unknown creator')
+
+  const membershipExpiryLabel = useMemo(() => {
+    if (membership.status !== 'active') return null
+    const rawExpiry = membership.passExpiresAt
+    if (!rawExpiry || !Number.isFinite(rawExpiry) || rawExpiry <= 0) {
+      return 'No expiry scheduled'
+    }
+
+    const expiryMs = rawExpiry < 1_000_000_000_000 ? rawExpiry * 1000 : rawExpiry
+    const expirySeconds = Math.floor(expiryMs / 1000)
+    const relative = formatTimestampRelative(expirySeconds)
+    const absolute = new Intl.DateTimeFormat('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(expiryMs))
+
+    return `${absolute} (${relative})`
+  }, [membership.passExpiresAt, membership.status])
 
   return (
     <div className='grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]'>
@@ -82,6 +101,12 @@ export function GroupAboutSection() {
               </span>
               By {creatorName}
             </span>
+            {membershipExpiryLabel && (
+              <span className='inline-flex items-center gap-2'>
+                <Calendar className='h-4 w-4' />
+                Pass expires {membershipExpiryLabel}
+              </span>
+            )}
           </div>
 
           {group.tags && group.tags.length > 0 && (
