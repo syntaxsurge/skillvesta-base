@@ -2,7 +2,7 @@
 
 import '@blocknote/core/fonts/inter.css'
 import '@blocknote/mantine/style.css'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
@@ -10,6 +10,7 @@ import { useMutation } from 'convex/react'
 import { AlertOctagon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
+import { useTheme } from 'next-themes'
 
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
@@ -41,6 +42,8 @@ export function GroupDescriptionEditor({
 }: GroupDescriptionEditorProps) {
   const { address } = useAccount()
   const updateDescription = useMutation(api.groups.updateDescription)
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
   const editor = useCreateBlockNote({
     initialContent: parseContent(initialContent)
@@ -70,11 +73,18 @@ export function GroupDescriptionEditor({
     })
   }, [address, editable, editor.document, groupId, updateDescription])
 
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const blocknoteTheme =
+    mounted && resolvedTheme === 'dark' ? 'dark' : 'light'
+
   return (
     <BlockNoteView
       editor={editor}
       editable={editable}
-      theme='light'
+      theme={blocknoteTheme}
       onChange={handlePersist}
       className={className}
     />

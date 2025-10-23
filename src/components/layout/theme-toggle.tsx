@@ -22,7 +22,7 @@ export function ThemeToggle() {
   }
 
   const icon = isDark ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />
-  const label = `Switch to ${isDark ? 'light' : 'dark'} mode`
+  const label = mounted ? `Switch to ${isDark ? 'light' : 'dark'} mode` : 'Toggle theme'
 
   return (
     <Button
