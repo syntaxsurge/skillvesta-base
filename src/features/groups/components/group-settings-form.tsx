@@ -4,13 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { useConvex } from 'convex/react'
 import Image from 'next/image'
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFieldArray, useForm, type FieldError } from 'react-hook-form'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { z } from 'zod'
 
-import { ImageIcon, Link2, Loader2, Plus, Trash2, UploadCloud, X } from 'lucide-react'
+import { ImageIcon, Link2, Plus, Trash2, UploadCloud, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -29,6 +29,7 @@ import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { isStorageReference, extractStorageId, toStorageSource } from '@/lib/media'
 import { useGroupContext } from '../context/group-context'
+import { MediaDropzone } from './media-dropzone'
 
 const administratorSchema = z.object({
   walletAddress: z
@@ -237,8 +238,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     galleryItems.some(item => isStorageReference(item.source)) ? 'upload' : 'links'
   )
   const [galleryLinkInput, setGalleryLinkInput] = useState('')
-  const thumbnailInputRef = useRef<HTMLInputElement | null>(null)
-  const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const thumbnailObjectUrlRef = useRef<string | null>(null)
   const galleryObjectUrlsRef = useRef<string[]>([])
 
@@ -301,14 +300,13 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     }
   }, [])
 
-  const handleThumbnailFile = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
+  const handleThumbnailFiles = useCallback(
+    async (files: File[]) => {
+      const file = files[0]
       if (!file) return
 
       if (!file.type.startsWith('image/')) {
         toast.error('Please choose an image file.')
-        event.target.value = ''
         return
       }
 
@@ -359,9 +357,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         toast.error('Unable to upload thumbnail. Please try a different image.')
       } finally {
         setIsUploadingThumbnail(false)
-        if (event.target) {
-          event.target.value = ''
-        }
       }
     },
     [convex, form, generateUploadUrl]
@@ -444,15 +439,13 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     [form]
   )
 
-  const handleGalleryUpload = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.target.files ?? [])
+  const handleGalleryFiles = useCallback(
+    async (files: File[]) => {
       if (!files.length) return
 
       const remainingSlots = MAX_GALLERY_ITEMS - galleryItems.length
       if (remainingSlots <= 0) {
         toast.error(`You can add up to ${MAX_GALLERY_ITEMS} gallery assets.`)
-        event.target.value = ''
         return
       }
 
@@ -508,9 +501,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         toast.error('Unable to upload gallery assets right now.')
       } finally {
         setIsUploadingGallery(false)
-        if (event.target) {
-          event.target.value = ''
-        }
       }
 
       if (!uploaded.length) {
@@ -882,9 +872,17 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value='upload'>
-                  <div className='space-y-3'>
-                    <div className='relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-dashed border-border bg-muted'>
-                      {thumbnailPreview ? (
+                  <MediaDropzone
+                    accept='image/*'
+                    buttonLabel='Upload image'
+                    helperText='PNG, JPG, and GIF files are supported.'
+                    uploading={isUploadingThumbnail}
+                    disabled={isUploadingThumbnail}
+                    dropAreaClassName='aspect-[4/3] overflow-hidden p-0'
+                    onSelect={handleThumbnailFiles}
+                  >
+                    {thumbnailPreview ? (
+                      <div className='relative h-full w-full'>
                         <Image
                           src={thumbnailPreview}
                           alt='Group thumbnail preview'
@@ -892,43 +890,28 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                           className='object-cover'
                           sizes='360px'
                         />
-                      ) : (
-                        <div className='flex h-full w-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground'>
-                          <ImageIcon className='h-6 w-6' />
-                          <span>Upload an image to represent your group.</span>
-                        </div>
-                      )}
-                      {isUploadingThumbnail && (
-                        <div className='absolute inset-0 flex items-center justify-center bg-background/70'>
-                          <Loader2 className='h-6 w-6 animate-spin text-foreground' />
-                        </div>
-                      )}
-                    </div>
-                    <div className='flex flex-wrap items-center gap-2'>
+                      </div>
+                    ) : (
+                      <div className='flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground'>
+                        <ImageIcon className='h-6 w-6' />
+                        <span>Drag & drop an image to represent your group.</span>
+                      </div>
+                    )}
+                  </MediaDropzone>
+                  {thumbnailPreview && (
+                    <div className='mt-2 flex justify-end'>
                       <Button
                         type='button'
-                        variant='outline'
+                        variant='ghost'
                         size='sm'
-                        onClick={() => thumbnailInputRef.current?.click()}
+                        onClick={handleClearThumbnail}
                         disabled={isUploadingThumbnail}
                       >
-                        <UploadCloud className='mr-2 h-4 w-4' />
-                        Upload image
+                        <X className='mr-2 h-4 w-4' />
+                        Remove
                       </Button>
-                      {thumbnailPreview && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          onClick={handleClearThumbnail}
-                          disabled={isUploadingThumbnail}
-                        >
-                          <X className='mr-2 h-4 w-4' />
-                          Remove
-                        </Button>
-                      )}
                     </div>
-                  </div>
+                  )}
                 </TabsContent>
                 <TabsContent value='link'>
                   <FormControl>
@@ -951,13 +934,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                   </p>
                 </TabsContent>
               </Tabs>
-              <input
-                ref={thumbnailInputRef}
-                type='file'
-                accept='image/*'
-                className='hidden'
-                onChange={handleThumbnailFile}
-              />
               <FormMessage />
             </FormItem>
           )}
@@ -1007,39 +983,24 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value='upload'>
-                  <div className='space-y-3'>
-                    <div className='rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center'>
-                      <p className='text-sm text-muted-foreground'>
+                  <MediaDropzone
+                    accept='image/*'
+                    multiple
+                    buttonLabel='Choose files'
+                    helperText='PNG, JPG, and GIF files are supported.'
+                    uploading={isUploadingGallery}
+                    disabled={isUploadingGallery || remainingGallerySlots <= 0}
+                    onSelect={handleGalleryFiles}
+                  >
+                    <div className='flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground'>
+                      <UploadCloud className='h-6 w-6' />
+                      <span>
                         {remainingGallerySlots > 0
                           ? `Drag & drop up to ${remainingGallerySlots} more image${remainingGallerySlots === 1 ? '' : 's'}, or use the button below.`
                           : 'Gallery is full. Remove an asset to add another.'}
-                      </p>
-                      <div className='mt-4 flex flex-wrap items-center justify-center gap-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => galleryInputRef.current?.click()}
-                          disabled={isUploadingGallery || remainingGallerySlots <= 0}
-                        >
-                          <UploadCloud className='mr-2 h-4 w-4' />
-                          Choose files
-                        </Button>
-                        {isUploadingGallery && (
-                          <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
-                        )}
-                      </div>
-                      <p className='mt-3 text-xs text-muted-foreground'>PNG, JPG, and GIF files are supported.</p>
+                      </span>
                     </div>
-                    <input
-                      ref={galleryInputRef}
-                      type='file'
-                      accept='image/*'
-                      multiple
-                      className='hidden'
-                      onChange={handleGalleryUpload}
-                    />
-                  </div>
+                  </MediaDropzone>
                 </TabsContent>
                 <TabsContent value='links'>
                   <div className='space-y-3'>
