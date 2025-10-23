@@ -66,13 +66,13 @@ export const ModuleNameEditor = ({
           onKeyDown={onKeyDown}
           value={value}
           onChange={e => onInput(e.target.value)}
-          className='text-md w-full break-words bg-transparent font-semibold text-foreground outline-none'
+          className='text-md w-full break-words bg-transparent text-center font-semibold text-foreground outline-none'
           maxLength={60}
         />
       ) : (
         <div
           onClick={enableInput}
-          className='text-md w-full break-words pb-[11.5px] font-semibold text-foreground outline-none'
+          className='text-md w-full break-words pb-[11.5px] text-center font-semibold text-foreground outline-none'
         >
           {name}
         </div>
