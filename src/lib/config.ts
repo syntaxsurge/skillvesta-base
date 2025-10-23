@@ -17,9 +17,24 @@ export const BASE_CHAIN_ID = Number(
 export const ONCHAINKIT_API_KEY =
   process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY ?? ''
 
-export const BASE_RPC_URL =
-  process.env.NEXT_PUBLIC_BASE_RPC_URL ??
-  'https://developer-access-mainnet.base.org'
+const DEFAULT_BASE_MAINNET_RPC_URL = 'https://developer-access-mainnet.base.org'
+const DEFAULT_BASE_SEPOLIA_RPC_URL = 'https://sepolia.base.org'
+
+const ENV_BASE_MAINNET_RPC_URL = process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL
+const ENV_BASE_SEPOLIA_RPC_URL = process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL
+const LEGACY_BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL
+
+export const BASE_MAINNET_RPC_URL =
+  ENV_BASE_MAINNET_RPC_URL ?? LEGACY_BASE_RPC_URL ?? DEFAULT_BASE_MAINNET_RPC_URL
+
+export const BASE_SEPOLIA_RPC_URL =
+  ENV_BASE_SEPOLIA_RPC_URL ?? DEFAULT_BASE_SEPOLIA_RPC_URL
+
+export function getBaseRpcUrl(chainId: 8453 | 84532) {
+  return chainId === 8453 ? BASE_MAINNET_RPC_URL : BASE_SEPOLIA_RPC_URL
+}
+
+export const BASE_RPC_URL = getBaseRpcUrl(BASE_CHAIN_ID)
 
 /** USDC contract address for Base mainnet or Sepolia. */
 export const USDC_CONTRACT_ADDRESS =

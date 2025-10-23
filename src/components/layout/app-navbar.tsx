@@ -13,7 +13,7 @@ export function AppNavbar() {
   const isMarketplace = pathname?.startsWith('/marketplace')
 
   return (
-    <header className='border-b border-border bg-background/80 backdrop-blur'>
+    <header className='relative z-40 border-b border-border bg-background/80 backdrop-blur'>
       <div className='mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-6'>
         <div className='flex items-center gap-3'>
           <Link href='/' className='hidden sm:block'>

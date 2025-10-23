@@ -4,10 +4,11 @@ import { ReactNode, useMemo } from 'react'
 
 import { OnchainKitProvider } from '@coinbase/onchainkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiProvider } from 'wagmi'
+import { WagmiProvider, useChainId } from 'wagmi'
 import { ThemeProvider as NextThemeProvider } from 'next-themes'
+import { base, baseSepolia } from 'wagmi/chains'
 
-import { ONCHAINKIT_API_KEY, BASE_RPC_URL } from '@/lib/config'
+import { ONCHAINKIT_API_KEY, getBaseRpcUrl } from '@/lib/config'
 import { ACTIVE_CHAIN, getWagmiConfig } from '@/lib/wagmi'
 import { ConvexClientProvider } from '@/providers/convex-client-provider'
 
@@ -49,16 +50,38 @@ export function AppProviders({ children }: AppProvidersProps) {
     >
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <OnchainKitProvider
-            apiKey={apiKey}
-            chain={ACTIVE_CHAIN}
-            rpcUrl={BASE_RPC_URL}
-            config={onchainKitConfig}
-          >
+          <DynamicOnchainKitProvider apiKey={apiKey} config={onchainKitConfig}>
             <ConvexClientProvider>{children}</ConvexClientProvider>
-          </OnchainKitProvider>
+          </DynamicOnchainKitProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </NextThemeProvider>
+  )
+}
+
+type DynamicOnchainKitProviderProps = {
+  apiKey?: string
+  config: Parameters<typeof OnchainKitProvider>[0]['config']
+  children: ReactNode
+}
+
+function DynamicOnchainKitProvider({
+  apiKey,
+  config,
+  children
+}: DynamicOnchainKitProviderProps) {
+  const chainId = useChainId()
+  const activeChain =
+    chainId === base.id
+      ? base
+      : chainId === baseSepolia.id
+        ? baseSepolia
+        : ACTIVE_CHAIN
+  const rpcUrl = getBaseRpcUrl(activeChain.id as 8453 | 84532)
+
+  return (
+    <OnchainKitProvider apiKey={apiKey} chain={activeChain} rpcUrl={rpcUrl} config={config}>
+      {children}
+    </OnchainKitProvider>
   )
 }
