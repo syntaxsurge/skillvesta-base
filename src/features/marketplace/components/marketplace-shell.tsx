@@ -243,10 +243,12 @@ export function MarketplaceShell() {
     })
   }, [data, filters])
 
-  const ownedCourses = useMemo(
-    () => (data ?? []).filter(course => course.user?.hasPass),
-    [data]
-  )
+  const ownedCourses = useMemo(() => {
+    const entries = (data ?? []).filter(course => course.user?.hasPass)
+    return entries.sort((a, b) =>
+      a.catalog.title.localeCompare(b.catalog.title)
+    )
+  }, [data])
   const preferredCourse = useMemo(
     () =>
       ownedCourses.find(course => course.user?.canTransfer) ?? ownedCourses[0],
@@ -451,6 +453,10 @@ export function MarketplaceShell() {
             </div>
           )}
 
+          {!isLoading && ownedCourses.length > 0 && (
+            <OwnedPassesCard passes={ownedCourses} onList={openListDialog} />
+          )}
+
           {!isLoading && filteredCourses.length === 0 && (
             <p className='text-muted-foreground'>No courses match your filters.</p>
           )}
@@ -587,6 +593,69 @@ function FilterControls({
         />
         Only show courses with live listings ({listingCount})
       </label>
+    </div>
+  )
+}
+
+function OwnedPassesCard({
+  passes,
+  onList
+}: {
+  passes: MarketplaceCourse[]
+  onList: (course: MarketplaceCourse) => void
+}) {
+  return (
+    <div className='space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm'>
+      <div>
+        <h3 className='text-lg font-semibold text-foreground'>My memberships</h3>
+        <p className='text-sm text-muted-foreground'>
+          Active passes linked to your wallet. Cooldown timing shows when secondary listing unlocks.
+        </p>
+      </div>
+      <div className='space-y-3'>
+        {passes.map(pass => {
+          const userState = pass.user
+          const transferStatus = userState?.canTransfer
+            ? 'Ready to transfer'
+            : userState
+            ? userState.transferAvailableAt === 0n
+              ? 'Cooldown settling'
+              : `Cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}`
+            : 'Not available'
+          const expiryStatus = userState
+            ? userState.expiresAt === 0n
+              ? 'No expiry scheduled'
+              : formatTimestampRelative(userState.expiresAt)
+            : '—'
+
+          return (
+            <div
+              key={pass.catalog.courseId.toString()}
+              className='flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/40 bg-muted/30 p-4'
+            >
+              <div className='space-y-1'>
+                <p className='text-sm font-semibold text-foreground'>
+                  {pass.catalog.title}
+                </p>
+                <p className='text-xs text-muted-foreground'>
+                  Membership #{pass.catalog.courseId.toString()}
+                </p>
+                <p className='text-xs text-muted-foreground'>
+                  Expires {expiryStatus} • Transfer {transferStatus}
+                </p>
+              </div>
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={() => onList(pass)}
+                title={transferStatus}
+              >
+                List pass
+              </Button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

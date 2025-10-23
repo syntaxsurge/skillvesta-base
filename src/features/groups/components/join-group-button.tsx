@@ -17,7 +17,6 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { api } from '@/convex/_generated/api'
-import type { Doc } from '@/convex/_generated/dataModel'
 import {
   MEMBERSHIP_CONTRACT_ADDRESS,
   REVENUE_SPLIT_ROUTER_ADDRESS,
@@ -28,45 +27,8 @@ import { MembershipPassService } from '@/lib/onchain/services/membershipPassServ
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { formatTimestampRelative } from '@/lib/time'
 import { useGroupContext } from '../context/group-context'
+import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/membership'
 import { formatGroupPriceLabel } from '../utils/price'
-
-function resolveMembershipCourseId(group: Doc<'groups'>): bigint | null {
-  const subscriptionId = group.subscriptionId
-  if (subscriptionId) {
-    const numeric = Number(subscriptionId)
-    if (!Number.isNaN(numeric) && numeric > 0) {
-      try {
-        return BigInt(numeric)
-      } catch {
-        // ignore parse errors
-      }
-    }
-  }
-
-  const tags = group.tags ?? []
-  for (const tag of tags) {
-    const normalized = tag.trim().toLowerCase()
-    const match = normalized.match(/^(?:course|pass|membership):([0-9]+)$/)
-    if (match) {
-      try {
-        return BigInt(match[1])
-      } catch {
-        continue
-      }
-    }
-  }
-
-  return null
-}
-
-function normalizePassExpiry(expiresAt: bigint | null | undefined) {
-  if (!expiresAt) return undefined
-  const numeric = Number(expiresAt)
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return undefined
-  }
-  return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
-}
 
 export function JoinGroupButton() {
   const { group, owner, isOwner, isMember, administrators, membership } = useGroupContext()

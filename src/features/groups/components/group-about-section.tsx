@@ -1,18 +1,80 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Calendar, CreditCard, Globe, Lock, Users } from 'lucide-react'
+import { Address } from 'viem'
+import { useAccount, usePublicClient } from 'wagmi'
 
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
 import { GroupSidebar } from './group-sidebar'
 import { useGroupContext } from '../context/group-context'
+import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/membership'
 import { formatGroupPriceLabel } from '../utils/price'
 import { formatTimestampRelative } from '@/lib/time'
+import { MEMBERSHIP_CONTRACT_ADDRESS } from '@/lib/config'
+import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
+import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
 export function GroupAboutSection() {
-  const { group, owner, isOwner, memberCount, membership } = useGroupContext()
+  const { group, owner, isOwner, memberCount, membership, currentUser } = useGroupContext()
+  const { address } = useAccount()
+  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
+  const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | null
+  const membershipService = useMemo(() => {
+    if (!publicClient || !membershipAddress) return null
+    return new MembershipPassService({
+      publicClient: publicClient as any,
+      address: membershipAddress
+    })
+  }, [publicClient, membershipAddress])
+  const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
+  const [passExpiryMs, setPassExpiryMs] = useState<number | null>(() => {
+    const normalized = normalizePassExpiry(membership.passExpiresAt)
+    return normalized ?? null
+  })
+
+  useEffect(() => {
+    const normalized = normalizePassExpiry(membership.passExpiresAt)
+    setPassExpiryMs(normalized ?? null)
+  }, [membership.passExpiresAt])
+
+  useEffect(() => {
+    if (
+      membership.status !== 'active' ||
+      !membershipService ||
+      !membershipCourseId
+    ) {
+      return
+    }
+
+    const walletAddress = (address ?? currentUser?.walletAddress) as Address | undefined
+    if (!walletAddress) return
+
+    let cancelled = false
+    membershipService
+      .getPassState(membershipCourseId, walletAddress)
+      .then(state => normalizePassExpiry(state.expiresAt))
+      .then(expiry => {
+        if (!cancelled) {
+          setPassExpiryMs(expiry ?? null)
+        }
+      })
+      .catch(error => {
+        console.error('Failed to resolve membership expiry for about page', error)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    address,
+    currentUser?.walletAddress,
+    membership.status,
+    membershipService,
+    membershipCourseId
+  ])
 
   const mediaSources = useMemo(() => {
     const sources: string[] = []
@@ -48,21 +110,19 @@ export function GroupAboutSection() {
 
   const membershipExpiryLabel = useMemo(() => {
     if (membership.status !== 'active') return null
-    const rawExpiry = membership.passExpiresAt
-    if (!rawExpiry || !Number.isFinite(rawExpiry) || rawExpiry <= 0) {
+    if (!passExpiryMs) {
       return 'No expiry scheduled'
     }
 
-    const expiryMs = rawExpiry < 1_000_000_000_000 ? rawExpiry * 1000 : rawExpiry
-    const expirySeconds = Math.floor(expiryMs / 1000)
+    const expirySeconds = Math.floor(passExpiryMs / 1000)
     const relative = formatTimestampRelative(expirySeconds)
     const absolute = new Intl.DateTimeFormat('en-US', {
       dateStyle: 'medium',
       timeStyle: 'short'
-    }).format(new Date(expiryMs))
+    }).format(new Date(passExpiryMs))
 
     return `${absolute} (${relative})`
-  }, [membership.passExpiresAt, membership.status])
+  }, [membership.status, passExpiryMs])
 
   return (
     <div className='grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]'>
