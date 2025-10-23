@@ -31,7 +31,11 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
 
   const { mutate: createPost, pending } = useApiMutation(api.posts.create)
 
-  const canSubmit = Boolean(title.trim()) && Boolean(address) && !pending
+  if (!address) {
+    return null
+  }
+
+  const canSubmit = Boolean(title.trim()) && !pending
 
   const handleCreate = async () => {
     if (!canSubmit) return
