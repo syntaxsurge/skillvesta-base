@@ -10,8 +10,12 @@ import {
   CaseSensitive,
   Component,
   Fullscreen,
+  ImageIcon,
+  Link2,
   Plus,
-  Trash2
+  Trash2,
+  UploadCloud,
+  X
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -20,6 +24,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { LessonEditorView } from '@/features/classroom/components/course/lesson-editor-view'
@@ -64,6 +74,7 @@ export function CourseEditPageClient({
   const [thumbnailSource, setThumbnailSource] = useState<string>('')
   const [thumbnailLinkInput, setThumbnailLinkInput] = useState('')
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false)
+  const [thumbnailTab, setThumbnailTab] = useState<'upload' | 'link'>('upload')
   const addLesson = useMutation(api.lessons.add)
   const addModule = useMutation(api.modules.add)
   const removeLesson = useMutation(api.lessons.remove)
@@ -92,6 +103,11 @@ export function CourseEditPageClient({
       courseThumbnailValue && !isStorageReference(courseThumbnailValue)
         ? courseThumbnailValue
         : ''
+    )
+    setThumbnailTab(
+      courseThumbnailValue && !isStorageReference(courseThumbnailValue)
+        ? 'link'
+        : 'upload'
     )
   }, [course._id, course.description, courseThumbnailValue])
 
@@ -129,10 +145,10 @@ export function CourseEditPageClient({
 
   const applyThumbnailSource = (next: string | null) => {
     const resolved = next ?? ''
+    const isLinkSource = Boolean(resolved) && !isStorageReference(resolved)
     setThumbnailSource(resolved)
-    setThumbnailLinkInput(
-      resolved && !isStorageReference(resolved) ? resolved : ''
-    )
+    setThumbnailLinkInput(isLinkSource ? resolved : '')
+    setThumbnailTab(isLinkSource ? 'link' : 'upload')
   }
 
   const handleDescriptionBlur = async () => {
@@ -328,17 +344,19 @@ export function CourseEditPageClient({
 
         {course.modules.map(module => (
           <div key={module._id} className='mb-8'>
-            <div className='mb-6 flex items-center gap-3'>
+            <div className='mb-6 flex items-center gap-3 rounded-md px-3 py-2'>
               <Component className='h-5 w-5 shrink-0 text-muted-foreground' />
-              <ModuleNameEditor
-                id={module._id}
-                name={module.title}
-                key={module._id}
-                ownerAddress={address}
-              />
+              <div className='flex flex-1 items-center justify-center'>
+                <ModuleNameEditor
+                  id={module._id}
+                  name={module.title}
+                  key={module._id}
+                  ownerAddress={address}
+                />
+              </div>
               <Button
                 variant='ghost'
-                className='ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/40 dark:text-red-300 dark:hover:text-red-200'
+                className='text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/40 dark:text-red-300 dark:hover:text-red-200'
                 onClick={() => {
                   if (!address) return
                   removeModule({ moduleId: module._id, address })
@@ -416,44 +434,81 @@ export function CourseEditPageClient({
       </div>
       <div className='flex-grow space-y-4 md:w-3/4'>
         <div className='rounded-xl border border-border bg-card p-4 shadow-sm'>
-          <div className='flex flex-col gap-6'>
-            <div className='flex flex-col gap-4 md:flex-row md:items-start'>
-              <div className='relative h-40 w-full overflow-hidden rounded-lg border border-dashed border-border bg-muted md:h-48 md:w-56'>
-                {thumbnailPreviewLoading ? (
-                  <Skeleton className='h-full w-full rounded-none' />
-                ) : thumbnailPreviewUrl ? (
-                  <Image
-                    src={thumbnailPreviewUrl}
-                    alt={`${course.title} thumbnail`}
-                    fill
-                    className='object-cover'
-                    sizes='(max-width: 768px) 100vw, 320px'
-                  />
-                ) : (
-                  <div className='flex h-full w-full items-center justify-center px-6 text-center text-xs text-muted-foreground'>
-                    Upload or paste an image to showcase this course in the classroom.
-                  </div>
-                )}
-              </div>
-              <div className='flex flex-1 flex-col gap-4'>
-                <div className='space-y-1'>
-                  <h2 className='text-sm font-semibold text-foreground'>
-                    Course thumbnail
-                  </h2>
-                  <p className='text-xs text-muted-foreground'>
-                    Learners see this image in the classroom grid and course overview.
-                  </p>
-                </div>
+          <div className='space-y-4'>
+            <div className='space-y-1'>
+              <h2 className='text-sm font-semibold text-foreground'>
+                Course thumbnail
+              </h2>
+              <p className='text-xs text-muted-foreground'>
+                Learners see this image in the classroom grid and course overview.
+              </p>
+            </div>
+            <Tabs
+              value={thumbnailTab}
+              onValueChange={value => setThumbnailTab(value as 'upload' | 'link')}
+              className='space-y-3'
+            >
+              <TabsList className='grid w-full grid-cols-2'>
+                <TabsTrigger value='upload' className='flex items-center gap-2'>
+                  <UploadCloud className='h-4 w-4' />
+                  Upload
+                </TabsTrigger>
+                <TabsTrigger value='link' className='flex items-center gap-2'>
+                  <Link2 className='h-4 w-4' />
+                  Link
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value='upload'>
                 <MediaDropzone
                   accept='image/*'
-                  onSelect={handleThumbnailFiles}
-                  disabled={thumbnailPending}
+                  onSelect={files => {
+                    void handleThumbnailFiles(files)
+                  }}
+                  disabled={thumbnailPending || isUploadingThumbnail}
                   uploading={isUploadingThumbnail}
-                  buttonLabel='Upload thumbnail'
-                  helperText='PNG, JPG, or GIF up to 5MB.'
-                  dropAreaClassName='min-h-[120px] p-4'
-                />
-                <div className='space-y-1'>
+                  dropAreaClassName='min-h-[200px] p-4'
+                >
+                  {thumbnailPreviewLoading ? (
+                    <Skeleton className='h-[200px] w-full rounded-lg' />
+                  ) : thumbnailPreviewUrl ? (
+                    <div className='relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted'>
+                      <Image
+                        src={thumbnailPreviewUrl}
+                        alt={`${course.title} thumbnail`}
+                        fill
+                        className='object-cover'
+                        sizes='360px'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground'>
+                      <ImageIcon className='h-6 w-6' />
+                      <span>Drag & drop an image to represent your course.</span>
+                      <span className='text-xs text-muted-foreground'>
+                        PNG, JPG, or GIF up to 5MB.
+                      </span>
+                    </div>
+                  )}
+                </MediaDropzone>
+                {canRemoveThumbnail && (
+                  <div className='mt-2 flex justify-end'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => {
+                        void handleClearThumbnail()
+                      }}
+                      disabled={thumbnailPending || isUploadingThumbnail}
+                    >
+                      <X className='mr-2 h-4 w-4' />
+                      Remove
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value='link'>
+                <div className='space-y-2'>
                   <Input
                     placeholder='https://example.com/thumbnail.jpg'
                     value={thumbnailLinkInput}
@@ -470,28 +525,11 @@ export function CourseEditPageClient({
                     disabled={thumbnailPending || isUploadingThumbnail}
                   />
                   <p className='text-xs text-muted-foreground'>
-                    Prefer a hosted image? Paste the direct URL here.
+                    Paste a direct image URL. JPG, PNG, or GIF files work best.
                   </p>
                 </div>
-                <div className='flex flex-wrap gap-2'>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      void handleClearThumbnail()
-                    }}
-                    disabled={
-                      !canRemoveThumbnail ||
-                      thumbnailPending ||
-                      isUploadingThumbnail
-                    }
-                  >
-                    Remove thumbnail
-                  </Button>
-                </div>
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
             <div className='space-y-2'>
               <h2 className='text-sm font-semibold text-foreground'>
                 Course description

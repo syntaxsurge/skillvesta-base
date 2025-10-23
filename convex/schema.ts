@@ -72,7 +72,8 @@ export default defineSchema({
   courses: defineTable({
     title: v.string(),
     description: v.string(),
-    groupId: v.id('groups')
+    groupId: v.id('groups'),
+    thumbnailUrl: v.optional(v.string())
   }).index('by_groupId', ['groupId']),
   modules: defineTable({
     title: v.string(),

@@ -45,9 +45,10 @@ export const create = mutation({
     title: v.string(),
     description: v.string(),
     groupId: v.id('groups'),
-    address: v.string()
+    address: v.string(),
+    thumbnailUrl: v.optional(v.string())
   },
-  handler: async (ctx, { title, description, groupId, address }) => {
+  handler: async (ctx, { title, description, groupId, address, thumbnailUrl }) => {
     const user = await requireUserByWallet(ctx, address)
     const group = await ctx.db.get(groupId)
 
@@ -62,7 +63,8 @@ export const create = mutation({
     const courseId = await ctx.db.insert('courses', {
       title,
       description,
-      groupId
+      groupId,
+      thumbnailUrl
     })
 
     return courseId
@@ -128,5 +130,25 @@ export const updateDescription = mutation({
       throw new Error('Only the group owner can update courses.')
     }
     await ctx.db.patch(id, { description })
+  }
+})
+
+export const updateThumbnail = mutation({
+  args: {
+    id: v.id('courses'),
+    thumbnailUrl: v.optional(v.string()),
+    address: v.string()
+  },
+  handler: async (ctx, { id, thumbnailUrl, address }) => {
+    const user = await requireUserByWallet(ctx, address)
+    const course = await ctx.db.get(id)
+    if (!course) {
+      throw new Error('Course not found.')
+    }
+    const group = await ctx.db.get(course.groupId)
+    if (!group || group.ownerId !== user._id) {
+      throw new Error('Only the group owner can update courses.')
+    }
+    await ctx.db.patch(id, { thumbnailUrl })
   }
 })

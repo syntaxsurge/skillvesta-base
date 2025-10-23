@@ -3,32 +3,40 @@
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
-import { ChevronRight } from 'lucide-react'
+import { BookOpen, ChevronRight } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { useResolvedMediaUrl } from '@/hooks/use-resolved-media-url'
 
 type CourseCardProps = {
   groupId: Id<'groups'>
-  course: Doc<'courses'> & { thumbnailStorageId?: string }
+  course: Doc<'courses'> & { thumbnailUrl?: string }
 }
 
 export function CourseCard({ groupId, course }: CourseCardProps) {
   const router = useRouter()
+  const { url: thumbnailUrl, loading } = useResolvedMediaUrl(
+    course.thumbnailUrl
+  )
 
   return (
     <article className='flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-1 hover:shadow-lg'>
       <div className='relative h-40 bg-muted'>
-        {course.thumbnailStorageId ? (
+        {thumbnailUrl ? (
           <Image
-            src={course.thumbnailStorageId}
+            src={thumbnailUrl}
             alt={course.title}
             fill
             className='object-cover'
             sizes='(max-width: 768px) 100vw, 360px'
           />
-        ) : (
+        ) : loading ? (
           <Skeleton className='h-full w-full rounded-none' />
+        ) : (
+          <div className='flex h-full w-full items-center justify-center'>
+            <BookOpen className='h-10 w-10 text-muted-foreground' />
+          </div>
         )}
       </div>
 

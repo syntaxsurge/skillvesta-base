@@ -18,7 +18,7 @@ type CourseGridProps = {
 
 export function CourseGrid({ groupId, canCreate = false }: CourseGridProps) {
   const router = useRouter()
-  type CourseDoc = Doc<'courses'> & { thumbnailStorageId?: string }
+  type CourseDoc = Doc<'courses'> & { thumbnailUrl?: string }
 
   const courses = useQuery(api.courses.list, { groupId }) as
     | CourseDoc[]
