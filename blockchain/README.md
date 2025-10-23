@@ -7,10 +7,11 @@ This folder is a stand-alone Hardhat project that contains the smart contracts p
 | Contract                 | Purpose                                                                                                              |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `MembershipPass1155.sol` | USDC-gated ERC-1155 passes (tokenId per course). Handles expirations, cooldowns, and marketplace-only transfers.    |
-| `SplitPayout.sol`        | Pull-based USDC splitter for collaborators. Receives funds from the membership contract and releases them on demand. |
+| `helpers/SplitPayout.sol`| Pull-based USDC splitter deployed per course. Registrar mints fresh instances and collaborators withdraw on demand. |
 | `Badge1155.sol`          | Soulbound completion badges (non-transferable ERC-1155).                                                             |
 | `Registrar.sol`          | Deploys a `SplitPayout` and registers a course in one call.                                                          |
 | `MembershipMarketplace.sol` | Primary + secondary marketplace enforcing platform fees, cooldowns, and renewals.                                |
+| `RevenueSplitRouter.sol` | Basis-point splitter used during join purchases to fan out USDC to owners and administrators immediately.          |
 
 ## Getting Started
 
@@ -48,6 +49,8 @@ scripts check these fields so they can skip redeploying and instead attach to
 the existing instance (necessary for tasks such as granting roles or updating
 pricing). Keeping this information in `blockchain/.env` prevents accidental
 redeployments and keeps the Hardhat tooling in sync with production.
+
+Helper contracts that are instantiated per course live under `contracts/helpers/` (for example, `helpers/SplitPayout.sol`), highlighting that they are deployed by `Registrar` on demand. Environment-wide utilities such as `RevenueSplitRouter.sol` remain at the top level because you deploy them once and wire the resulting address into `.env` and the frontend (`NEXT_PUBLIC_REVENUE_SPLIT_ROUTER_ADDRESS`).
 
 ## Typical Commands
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.25;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SplitPayout} from "./SplitPayout.sol";
+import {SplitPayout} from "./helpers/SplitPayout.sol";
 import {MembershipPass1155} from "./MembershipPass1155.sol";
 
 /**

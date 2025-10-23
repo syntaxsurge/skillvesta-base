@@ -29,8 +29,8 @@ contract SplitPayout is ReentrancyGuard {
     event PaymentReleased(address indexed to, uint256 amount);
 
     error InvalidRecipients();
-   error InvalidShares();
-   error ZeroAddressRecipient();
+    error InvalidShares();
+    error ZeroAddressRecipient();
 
     modifier onlyMembership() {
         require(msg.sender == membership, "Only membership");
