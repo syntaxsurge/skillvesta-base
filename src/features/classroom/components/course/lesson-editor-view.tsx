@@ -43,9 +43,9 @@ export const LessonEditorView = ({ lesson }: LessonEditorViewProps) => {
   }
 
   return (
-    <div className='space-y-4 rounded-lg border border-neutral-300 p-4'>
+    <div className='space-y-4 rounded-lg border border-border bg-card p-4'>
       <div className='mb-6 flex items-center space-x-3'>
-        <CaseSensitive className='text-zinc-500' />
+        <CaseSensitive className='text-muted-foreground' />
         <Input
           placeholder='Title'
           value={title}
@@ -59,10 +59,10 @@ export const LessonEditorView = ({ lesson }: LessonEditorViewProps) => {
         onChange={e => setVideoUrl(e.target.value)}
       />
       <div className='flex flex-col'>
-        <p className='text-xs text-zinc-500'>
+        <p className='text-xs text-muted-foreground'>
           Paste any YouTube watch, share, or embed link. We&apos;ll convert it to an embeddable URL automatically.
         </p>
-        <p className='text-xs text-zinc-500'>
+        <p className='text-xs text-muted-foreground'>
           Example: https://www.youtube.com/watch?v=TalBbvAhdIY
         </p>
       </div>
@@ -85,7 +85,7 @@ export const LessonEditorView = ({ lesson }: LessonEditorViewProps) => {
         )}
       </AspectRatio>
       <div className='mb-6 mt-3 flex items-center space-x-3'>
-        <Text className='mt-3 text-zinc-500' />
+        <Text className='mt-3 text-muted-foreground' />
         <Input
           placeholder='Description'
           value={description}

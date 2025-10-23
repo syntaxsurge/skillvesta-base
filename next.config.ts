@@ -17,6 +17,7 @@ const securityHeaders = [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
+      "frame-src 'self' https: blob: data:",
       "frame-ancestors 'none'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",

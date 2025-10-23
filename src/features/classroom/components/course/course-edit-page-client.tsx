@@ -21,6 +21,7 @@ import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { LessonEditorView } from '@/features/classroom/components/course/lesson-editor-view'
 import { ModuleNameEditor } from '@/features/classroom/components/course/module-name-editor'
 import { useCurrentUser } from '@/hooks/use-current-user'
+import { cn } from '@/lib/utils'
 
 type CourseEditPageClientProps = {
   groupId: Id<'groups'>
@@ -90,8 +91,8 @@ export function CourseEditPageClient({
         {isOwner && (
           <Button
             onClick={handleEditClick}
-            variant={'secondary'}
-            className='mb-10 space-x-3 text-sm text-zinc-600'
+            variant='secondary'
+            className='mb-10 flex items-center gap-3 text-sm'
           >
             <Fullscreen className='h-4 w-4' />
             <p>Preview</p>
@@ -117,8 +118,8 @@ export function CourseEditPageClient({
                 ownerAddress={address}
               />
               <Button
-                variant={'secondary'}
-                className='text-red-300'
+                variant='ghost'
+                className='text-destructive hover:text-destructive/90'
                 onClick={() => {
                   if (!address) return
                   removeModule({ moduleId: module._id, address })
@@ -129,36 +130,53 @@ export function CourseEditPageClient({
             </div>
 
             <ul>
-              {module.lessons.map(lesson => (
-                <li
-                  key={lesson._id}
-                  className={`flex cursor-pointer items-center space-x-3 rounded-md p-2 pl-4 transition duration-150 ease-in-out ${
-                    selectedLesson?._id === lesson._id
-                      ? 'bg-blue-100 hover:bg-blue-200'
-                      : 'hover:bg-gray-100'
-                  }`}
-                  onClick={() => setSelectedLesson(lesson)}
-                >
-                  <CaseSensitive className='text-zinc-500' />
-                  <p className='capitalize'>{lesson.title}</p>
-                  <Button
-                    variant={'secondary'}
-                    className='text-red-300'
-                    onClick={() => {
-                      if (!address) return
-                      removeLesson({ lessonId: lesson._id, address })
-                    }}
+              {module.lessons.map(lesson => {
+                const isSelected = selectedLesson?._id === lesson._id
+                return (
+                  <li
+                    key={lesson._id}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-md p-2 pl-4 transition duration-150 ease-in-out',
+                      isSelected
+                        ? 'bg-primary/10 ring-1 ring-primary/40'
+                        : 'hover:bg-muted'
+                    )}
+                    onClick={() => setSelectedLesson(lesson)}
                   >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </li>
-              ))}
+                    <CaseSensitive
+                      className={cn(
+                        'h-4 w-4 shrink-0 transition-colors',
+                        isSelected ? 'text-primary' : 'text-muted-foreground'
+                      )}
+                    />
+                    <p
+                      className={cn(
+                        'flex-1 text-sm font-medium capitalize transition-colors',
+                        isSelected ? 'text-primary' : 'text-foreground'
+                      )}
+                    >
+                      {lesson.title}
+                    </p>
+                    <Button
+                      variant='ghost'
+                      className='text-destructive hover:text-destructive/90'
+                      onClick={event => {
+                        event.stopPropagation()
+                        if (!address) return
+                        removeLesson({ lessonId: lesson._id, address })
+                      }}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </li>
+                )
+              })}
             </ul>
 
             <Button
-              variant={'ghost'}
+              variant='ghost'
               onClick={() => handleAddLesson(module._id)}
-              className='mt-4 flex w-full space-x-2'
+              className='mt-4 flex w-full items-center gap-2'
             >
               <Plus className='h-4 w-4' />
               <p>Add lesson</p>
@@ -166,15 +184,15 @@ export function CourseEditPageClient({
           </div>
         ))}
         <Button
-          variant={'outline'}
+          variant='outline'
           onClick={() => handleAddModule(course._id)}
-          className='mt-4 flex w-full space-x-2 border-2 p-0 text-blue-700'
+          className='mt-4 flex w-full items-center gap-2'
         >
           <Plus className='h-4 w-4' />
           <p>Add module</p>
         </Button>
       </div>
-      <div className='flex-grow rounded-xl bg-gray-50 p-4 shadow-md md:w-3/4'>
+      <div className='flex-grow rounded-xl border border-border bg-card p-4 shadow-sm md:w-3/4'>
         {selectedLesson && <LessonEditorView lesson={selectedLesson} />}
       </div>
     </div>
