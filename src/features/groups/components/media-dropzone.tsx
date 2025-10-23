@@ -10,7 +10,6 @@ import {
   useState
 } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type MediaDropzoneProps = {
@@ -18,7 +17,6 @@ type MediaDropzoneProps = {
   multiple?: boolean
   disabled?: boolean
   uploading?: boolean
-  buttonLabel: string
   helperText?: string
   children?: ReactNode
   className?: string
@@ -57,11 +55,10 @@ export function MediaDropzone({
   multiple,
   disabled,
   uploading,
-  buttonLabel,
   helperText,
   children,
   className,
-  dropAreaClassName = 'min-h-[180px] p-6',
+  dropAreaClassName = 'min-h-[150px] p-6',
   onSelect
 }: MediaDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -131,8 +128,18 @@ export function MediaDropzone({
     [openFileDialog]
   )
 
+  const renderDefaultContent = () => (
+    <div className='flex flex-col items-center gap-2 px-6 text-center text-sm text-muted-foreground'>
+      <UploadCloud className='h-6 w-6' />
+      <span>Drag & drop files here, or click to browse.</span>
+      {helperText && (
+        <p className='text-xs text-muted-foreground'>{helperText}</p>
+      )}
+    </div>
+  )
+
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('relative w-full', className)}>
       <div
         role='button'
         tabIndex={disabled ? -1 : 0}
@@ -151,36 +158,13 @@ export function MediaDropzone({
           isDragActive && 'border-primary bg-primary/5 text-primary'
         )}
       >
-        {children ?? (
-          <div className='flex flex-col items-center gap-2 text-sm text-muted-foreground'>
-            <UploadCloud className='h-6 w-6' />
-            <span>Drag & drop files here, or use the button below.</span>
-          </div>
-        )}
+        {children ?? renderDefaultContent()}
         {uploading && (
           <div className='absolute inset-0 flex items-center justify-center rounded-lg bg-background/70'>
             <Loader2 className='h-6 w-6 animate-spin text-foreground' />
           </div>
         )}
       </div>
-      <div className='flex flex-wrap items-center justify-center gap-2'>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          onClick={openFileDialog}
-          disabled={disabled || uploading}
-        >
-          <UploadCloud className='mr-2 h-4 w-4' />
-          {buttonLabel}
-        </Button>
-        {uploading && (
-          <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
-        )}
-      </div>
-      {helperText && (
-        <p className='text-center text-xs text-muted-foreground'>{helperText}</p>
-      )}
       <input
         ref={inputRef}
         type='file'

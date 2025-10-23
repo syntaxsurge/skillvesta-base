@@ -874,11 +874,9 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                 <TabsContent value='upload'>
                   <MediaDropzone
                     accept='image/*'
-                    buttonLabel='Upload image'
-                    helperText='PNG, JPG, and GIF files are supported.'
                     uploading={isUploadingThumbnail}
                     disabled={isUploadingThumbnail}
-                    dropAreaClassName='aspect-[4/3] overflow-hidden p-0'
+                    dropAreaClassName='h-40 w-full overflow-hidden p-0 sm:h-48'
                     onSelect={handleThumbnailFiles}
                   >
                     {thumbnailPreview ? (
@@ -895,6 +893,9 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                       <div className='flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground'>
                         <ImageIcon className='h-6 w-6' />
                         <span>Drag & drop an image to represent your group.</span>
+                        <span className='text-xs text-muted-foreground'>
+                          PNG, JPG, and GIF files are supported.
+                        </span>
                       </div>
                     )}
                   </MediaDropzone>
@@ -986,8 +987,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                   <MediaDropzone
                     accept='image/*'
                     multiple
-                    buttonLabel='Choose files'
-                    helperText='PNG, JPG, and GIF files are supported.'
                     uploading={isUploadingGallery}
                     disabled={isUploadingGallery || remainingGallerySlots <= 0}
                     onSelect={handleGalleryFiles}
@@ -996,8 +995,11 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                       <UploadCloud className='h-6 w-6' />
                       <span>
                         {remainingGallerySlots > 0
-                          ? `Drag & drop up to ${remainingGallerySlots} more image${remainingGallerySlots === 1 ? '' : 's'}, or use the button below.`
+                          ? `Drag & drop up to ${remainingGallerySlots} more image${remainingGallerySlots === 1 ? '' : 's'}, or click to browse.`
                           : 'Gallery is full. Remove an asset to add another.'}
+                      </span>
+                      <span className='text-xs text-muted-foreground'>
+                        PNG, JPG, and GIF files are supported.
                       </span>
                     </div>
                   </MediaDropzone>
