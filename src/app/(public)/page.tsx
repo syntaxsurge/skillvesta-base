@@ -7,9 +7,8 @@ import { useMutation } from 'convex/react'
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { useAccount } from 'wagmi'
 
-import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
-import { GroupDirectory } from '@/features/groups/components/group-directory'
+import { Button } from '@/components/ui/button'
 
 const highlights = [
   { label: 'Communities thriving', value: '2,400+' },
@@ -98,7 +97,7 @@ export default function HomePage() {
                 The modern home for your paid community and courses
               </h1>
               <p className='max-w-xl text-lg text-muted-foreground'>
-                Skillvesta gives you Skool-level simplicity with onchain ownership. Accept Base USDC, deliver premium
+                Skillvesta delivers a modern, unified workflow with onchain ownership. Accept Base USDC, deliver premium
                 classrooms, and grow memberships without duct-taped tools.
               </p>
             </div>
@@ -110,7 +109,7 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button size='lg' variant='ghost' asChild>
-                <Link href='/marketplace'>Explore live groups</Link>
+                <Link href='/groups'>Explore your communities</Link>
               </Button>
             </div>
             <dl className='grid gap-6 sm:grid-cols-3'>
@@ -220,22 +219,30 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className='space-y-6'>
-          <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
-            <div>
-              <h2 className='text-3xl font-semibold text-foreground sm:text-4xl'>Your communities</h2>
-              <p className='text-sm text-muted-foreground'>
-                Connect your wallet to instantly load every group you manage or participate in.
+        <section className='space-y-6 rounded-3xl border border-border/70 bg-card/90 p-10 shadow-xl backdrop-blur-md'>
+          <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='space-y-2'>
+              <h2 className='text-3xl font-semibold text-foreground sm:text-4xl'>Ready to see your communities?</h2>
+              <p className='max-w-xl text-sm text-muted-foreground'>
+                Browse every group you own or participate in, manage memberships, and jump into the conversation from a
+                dedicated overview page.
               </p>
             </div>
-            <Button asChild variant='outline'>
-              <Link href='/create'>
-                Create a group
-                <ArrowRight className='ml-2 h-4 w-4' aria-hidden='true' />
-              </Link>
-            </Button>
+            <div className='flex flex-col gap-3 sm:flex-row'>
+              <Button asChild>
+                <Link href='/groups'>
+                  View your groups
+                  <ArrowRight className='ml-2 h-4 w-4' aria-hidden='true' />
+                </Link>
+              </Button>
+              <Button asChild variant='outline'>
+                <Link href='/create'>
+                  Create a group
+                  <Sparkles className='ml-2 h-4 w-4' aria-hidden='true' />
+                </Link>
+              </Button>
+            </div>
           </div>
-          <GroupDirectory />
         </section>
       </div>
     </main>
