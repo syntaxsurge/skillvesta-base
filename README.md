@@ -20,6 +20,7 @@
 - A Convex project (`npx convex dev` will prompt you to create or link one)
 - A Coinbase Developer Platform or Quickstart API key for OnchainKit
 - A treasury wallet on Base (test with Base Sepolia) holding or receiving USDC
+- A Base Sepolia wallet funded with testnet USDC and native ETH for gas
 
 ## Installation
 
@@ -39,8 +40,10 @@ NEXT_PUBLIC_CONVEX_URL="https://<your-convex-deployment>.convex.cloud"
 
 # Coinbase / OnchainKit
 NEXT_PUBLIC_ONCHAINKIT_API_KEY="ck_live_or_test_key"
-NEXT_PUBLIC_BASE_CHAIN_ID="84532"                # 8453 for Base mainnet, 84532 for Base Sepolia
-NEXT_PUBLIC_BASE_RPC_URL="https://sepolia.base.org"  # optional, overrides default RPC
+NEXT_PUBLIC_BASE_CHAIN_ID="84532"                        # 8453 for Base mainnet, 84532 for Base Sepolia
+NEXT_PUBLIC_BASE_MAINNET_RPC_URL="https://developer-access-mainnet.base.org"  # optional override
+NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"                   # optional override
+# NEXT_PUBLIC_BASE_RPC_URL is still accepted as a legacy mainnet override
 
 # Contracts & USDC routing
 NEXT_PUBLIC_USDC_CONTRACT_ADDRESS="0xd9aAEc86B65D86f6A7B5b1b0c42FFA531710b6CA" # Base Sepolia
@@ -55,6 +58,13 @@ NEXT_PUBLIC_REGISTRAR_CONTRACT_ADDRESS="0xYourRegistrar"
 
 If you have not initialised Convex locally, run `npx convex dev` once so
 `convex/` can talk to your deployment and regenerate `_generated/` types.
+
+## Testnet Funding
+
+For end-to-end testing on Base Sepolia:
+
+1. Visit https://faucet.circle.com/, choose `USDC`, pick the `Base Sepolia` network, and submit your wallet address to receive testnet USDC.
+2. Ensure the same wallet also holds a small amount of Base Sepolia ETH so transactions have gas. Use any reputable Base Sepolia faucet or bridge to top up before interacting with the app.
 
 ## Scripts
 
