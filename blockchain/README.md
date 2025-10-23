@@ -60,6 +60,7 @@ npx hardhat run scripts/deployMembershipPass.ts --network baseSepolia
 npx hardhat run scripts/deployBadge1155.ts --network baseSepolia
 npx hardhat run scripts/deployRegistrar.ts --network baseSepolia
 npx hardhat run scripts/deployMarketplace.ts --network baseSepolia
+npx hardhat run scripts/deployRevenueSplitRouter.ts --network baseSepolia
 ```
 
 Compiling generates ABIs under `artifacts/` and TypeScript types under `typechain-types/`.
@@ -77,7 +78,10 @@ Compiling generates ABIs under `artifacts/` and TypeScript types under `typechai
 4. **Deploy `MembershipMarketplace`** (`deployMarketplace.ts`).
    - Requires the membership address and `MARKETPLACE_TREASURY_ADDRESS`.
    - Script grants `MARKETPLACE_ROLE`; note the resulting address for the web app.
-5. Mirror the same addresses into the frontend (`NEXT_PUBLIC_*`, including
+5. **Deploy `RevenueSplitRouter`** (`deployRevenueSplitRouter.ts`).
+   - Stateless helper used for group join revenue splits. Deploy once per environment.
+   - Script records both `REVENUE_SPLIT_ROUTER_ADDRESS` and `NEXT_PUBLIC_REVENUE_SPLIT_ROUTER_ADDRESS` so the app can call it.
+6. Mirror the same addresses into the frontend (`NEXT_PUBLIC_*`, including
    `NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS`) so the app talks to the correct contracts.
 
 Whenever a creator registers a course the dApp will call the Registrar which deploys a `SplitPayout` and wires the course configuration.
