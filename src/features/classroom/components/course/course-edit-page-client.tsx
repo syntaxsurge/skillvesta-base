@@ -82,6 +82,10 @@ export function CourseEditPageClient({
   const { url: thumbnailPreviewUrl, loading: thumbnailPreviewLoading } =
     useResolvedMediaUrl(thumbnailSource || course?.thumbnailUrl)
   const courseThumbnailValue = course?.thumbnailUrl ?? ''
+  const canRemoveThumbnail = useMemo(
+    () => Boolean(thumbnailSource || thumbnailLinkInput.trim()),
+    [thumbnailSource, thumbnailLinkInput]
+  )
 
   useEffect(() => {
     if (!course) {
@@ -286,11 +290,6 @@ export function CourseEditPageClient({
       toast.error('Unable to update the course thumbnail.')
     }
   }
-
-  const canRemoveThumbnail = useMemo(
-    () => Boolean(thumbnailSource || thumbnailLinkInput.trim()),
-    [thumbnailSource, thumbnailLinkInput]
-  )
 
   const handleClearThumbnail = async () => {
     if (!thumbnailSource) {
