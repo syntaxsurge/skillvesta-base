@@ -119,13 +119,13 @@ export function CourseEditPageClient({
               />
               <Button
                 variant='ghost'
-                className='text-destructive hover:text-destructive/90'
+                className='text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/40'
                 onClick={() => {
                   if (!address) return
                   removeModule({ moduleId: module._id, address })
                 }}
               >
-                <Trash2 />
+                <Trash2 className='h-4 w-4' />
               </Button>
             </div>
 
@@ -159,7 +159,7 @@ export function CourseEditPageClient({
                     </p>
                     <Button
                       variant='ghost'
-                      className='text-destructive hover:text-destructive/90'
+                      className='text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/40'
                       onClick={event => {
                         event.stopPropagation()
                         if (!address) return
