@@ -81,22 +81,12 @@ export function CourseEditPageClient({
   const removeModule = useMutation(api.modules.remove)
   const { url: thumbnailPreviewUrl, loading: thumbnailPreviewLoading } =
     useResolvedMediaUrl(thumbnailSource || course?.thumbnailUrl)
-
-  if (course === undefined) {
-    return <LoadingIndicator fullScreen />
-  }
-
-  if (course === null) {
-    return (
-      <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
-        Course not found.
-      </div>
-    )
-  }
-
-  const courseThumbnailValue = course.thumbnailUrl ?? ''
+  const courseThumbnailValue = course?.thumbnailUrl ?? ''
 
   useEffect(() => {
+    if (!course) {
+      return
+    }
     setCourseDescription(course.description ?? '')
     setThumbnailSource(courseThumbnailValue)
     setThumbnailLinkInput(
@@ -109,7 +99,7 @@ export function CourseEditPageClient({
         ? 'link'
         : 'upload'
     )
-  }, [course._id, course.description, courseThumbnailValue])
+  }, [course?._id, course?.description, courseThumbnailValue])
 
   useEffect(() => {
     if (!course) return
@@ -125,14 +115,26 @@ export function CourseEditPageClient({
   }, [course, selectedLesson])
 
   useEffect(() => {
-    if (selectedLesson) return
+    if (!course || selectedLesson) return
     const firstPopulatedModule = course.modules.find(
       module => module.lessons.length > 0
     )
     if (firstPopulatedModule) {
       setSelectedLesson(firstPopulatedModule.lessons[0])
     }
-  }, [course.modules, selectedLesson])
+  }, [course?.modules, selectedLesson])
+
+  if (course === undefined) {
+    return <LoadingIndicator fullScreen />
+  }
+
+  if (course === null) {
+    return (
+      <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
+        Course not found.
+      </div>
+    )
+  }
 
   const handleEditClick = () => {
     router.push(`/${groupId}/classroom/${course._id}`)
