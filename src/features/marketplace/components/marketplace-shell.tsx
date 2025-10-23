@@ -62,30 +62,43 @@ type MarketplaceCourse = {
   }
 }
 
+type ExpiryFilter = 'any' | '7d' | '30d' | 'no-expiry'
+
 type Filters = {
   search: string
-  category: string
-  difficulty: string
+  expiry: ExpiryFilter
   onlyListings: boolean
 }
 
 const defaultFilters: Filters = {
   search: '',
-  category: 'all',
-  difficulty: 'all',
+  expiry: 'any',
   onlyListings: false
+}
+
+function toListingExpirySeconds(listing: MarketplaceListing): number | null {
+  if (listing.expiresAt === 0n) return null
+  const value = Number(listing.expiresAt)
+  if (!Number.isFinite(value)) return null
+  return value
+}
+
+function getNextListingExpiry(listings: MarketplaceListing[]): number | null {
+  const now = Math.floor(Date.now() / 1000)
+  const futureExpiries = listings
+    .map(toListingExpirySeconds)
+    .filter((value): value is number => value !== null && value > now)
+  if (futureExpiries.length === 0) return null
+  return futureExpiries.reduce((min, value) => (value < min ? value : min), futureExpiries[0])
+}
+
+function shortenAddress(address: string) {
+  if (address.length <= 10) return address
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 export function MarketplaceShell() {
   const catalog = useMemo(() => getCourseCatalog(), [])
-  const categories = useMemo(
-    () => ['all', ...new Set(catalog.map(item => item.category))],
-    [catalog]
-  )
-  const difficulties = useMemo(
-    () => ['all', ...new Set(catalog.map(item => item.difficulty.toLowerCase()))],
-    [catalog]
-  )
 
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [listDialog, setListDialog] = useState<{ open: boolean; course?: MarketplaceCourse }>(
@@ -191,24 +204,51 @@ export function MarketplaceShell() {
   const filteredCourses = useMemo(() => {
     if (!data) return []
     const term = filters.search.trim().toLowerCase()
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const windowSeconds =
+      filters.expiry === '7d' ? 7 * 86_400 : filters.expiry === '30d' ? 30 * 86_400 : null
 
-    return data.filter(entry => {
-      if (filters.onlyListings && entry.stats.listingCount === 0) return false
-      if (filters.category !== 'all' && entry.catalog.category !== filters.category) return false
-      if (
-        filters.difficulty !== 'all' &&
-        entry.catalog.difficulty.toLowerCase() !== filters.difficulty
-      )
-        return false
+    const matchesSearch = (entry: MarketplaceCourse) => {
       if (!term) return true
-
       return (
         entry.catalog.title.toLowerCase().includes(term) ||
         entry.catalog.summary.toLowerCase().includes(term) ||
         entry.catalog.tags.some(tag => tag.toLowerCase().includes(term))
       )
+    }
+
+    const matchesExpiry = (entry: MarketplaceCourse) => {
+      if (filters.expiry === 'any') return true
+      if (entry.listings.length === 0) return false
+
+      if (filters.expiry === 'no-expiry') {
+        return entry.listings.some(listing => listing.expiresAt === 0n)
+      }
+
+      if (!windowSeconds) return true
+
+      return entry.listings.some(listing => {
+        if (listing.expiresAt === 0n) return false
+        const expirySeconds = Number(listing.expiresAt)
+        if (!Number.isFinite(expirySeconds)) return false
+        if (expirySeconds <= nowSeconds) return false
+        return expirySeconds - nowSeconds <= windowSeconds
+      })
+    }
+
+    return data.filter(entry => {
+      if (filters.onlyListings && entry.stats.listingCount === 0) return false
+      if (!matchesExpiry(entry)) return false
+      return matchesSearch(entry)
     })
   }, [data, filters])
+
+  const listableCourses = useMemo(
+    () =>
+      (data ?? []).filter(course => course.user?.hasPass && course.user.canTransfer),
+    [data]
+  )
+  const firstListableCourse = listableCourses[0]
 
   const contractsConfigured = Boolean(marketplaceAddress && membershipAddress)
 
@@ -217,6 +257,14 @@ export function MarketplaceShell() {
   }
 
   const closeListDialog = () => setListDialog({ open: false })
+
+  const handleListFromHero = () => {
+    if (!firstListableCourse) {
+      toast.info('Mint a membership or wait for the transfer cooldown to end before listing.')
+      return
+    }
+    openListDialog(firstListableCourse)
+  }
 
   const handlePrimaryPurchase = async (course: MarketplaceCourse) => {
     if (!writableMarketplace) {
@@ -339,14 +387,16 @@ export function MarketplaceShell() {
 
   return (
     <section className='mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12'>
-      <Hero listingCount={data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0} />
+      <Hero
+        listingCount={data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0}
+        canList={Boolean(firstListableCourse)}
+        onListPass={handleListFromHero}
+      />
 
       <div className='flex flex-col gap-8 lg:flex-row'>
         <aside className='w-full max-w-sm flex-shrink-0 space-y-6 rounded-3xl border border-border/60 bg-background/70 p-6 shadow-sm backdrop-blur'>
           <FilterControls
             filters={filters}
-            categories={categories}
-            difficulties={difficulties}
             onChange={setFilters}
             listingCount={data?.reduce((acc, row) => acc + row.stats.listingCount, 0) ?? 0}
           />
@@ -392,12 +442,25 @@ export function MarketplaceShell() {
         </main>
       </div>
 
-      <ListDialog state={listDialog} onClose={closeListDialog} onSubmit={handleCreateListing} />
+      <ListDialog
+        state={listDialog}
+        onClose={closeListDialog}
+        onSubmit={handleCreateListing}
+        eligibleCourses={listableCourses}
+      />
     </section>
   )
 }
 
-function Hero({ listingCount }: { listingCount: number }) {
+function Hero({
+  listingCount,
+  canList,
+  onListPass
+}: {
+  listingCount: number
+  canList: boolean
+  onListPass: () => void
+}) {
   return (
     <div className='relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-10 py-14 text-white shadow-lg'>
       <div className='absolute -right-12 top-12 h-48 w-48 rounded-full bg-emerald-500/40 blur-3xl' />
@@ -412,6 +475,16 @@ function Hero({ listingCount }: { listingCount: number }) {
           <HeroStat label='Collections live' value='3+' />
           <HeroStat label='Active listings' value={String(listingCount)} />
           <HeroStat label='Settlement asset' value='USDC • Base Sepolia' />
+        </div>
+        <div className='flex flex-wrap items-center gap-3 pt-6'>
+          <Button variant='secondary' onClick={onListPass} disabled={!canList}>
+            List a membership
+          </Button>
+          {!canList && (
+            <p className='text-xs text-slate-200/80'>
+              Hold an active pass with an unlocked transfer window to list it.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -429,14 +502,10 @@ function HeroStat({ label, value }: { label: string; value: string }) {
 
 function FilterControls({
   filters,
-  categories,
-  difficulties,
   listingCount,
   onChange
 }: {
   filters: Filters
-  categories: string[]
-  difficulties: string[]
   listingCount: number
   onChange: (filters: Filters) => void
 }) {
@@ -454,41 +523,25 @@ function FilterControls({
       </div>
 
       <div className='space-y-2'>
-        <Label>Category</Label>
+        <Label htmlFor='marketplace-expiry'>Listing expiration</Label>
         <Select
-          value={filters.category}
-          onValueChange={value => onChange({ ...filters, category: value })}
+          value={filters.expiry}
+          onValueChange={value => onChange({ ...filters, expiry: value as ExpiryFilter })}
         >
-          <SelectTrigger>
-            <SelectValue placeholder='All categories' />
+          <SelectTrigger id='marketplace-expiry'>
+            <SelectValue placeholder='Any expiration' />
           </SelectTrigger>
           <SelectContent>
-            {categories.map(category => (
-              <SelectItem key={category} value={category}>
-                {category.charAt(0).toUpperCase() + category.slice(1)}
-              </SelectItem>
-            ))}
+            <SelectItem value='any'>Any expiration</SelectItem>
+            <SelectItem value='7d'>Ends within 7 days</SelectItem>
+            <SelectItem value='30d'>Ends within 30 days</SelectItem>
+            <SelectItem value='no-expiry'>No scheduled expiry</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-
-      <div className='space-y-2'>
-        <Label>Difficulty</Label>
-        <Select
-          value={filters.difficulty}
-          onValueChange={value => onChange({ ...filters, difficulty: value })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder='All levels' />
-          </SelectTrigger>
-          <SelectContent>
-            {difficulties.map(level => (
-              <SelectItem key={level} value={level}>
-                {level.charAt(0).toUpperCase() + level.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <p className='text-xs text-muted-foreground'>
+          Filter courses by when their live listings expire. Choose &ldquo;No scheduled expiry&rdquo; to
+          see listings without a set end date.
+        </p>
       </div>
 
       <label className='flex items-center gap-3 text-sm'>
@@ -518,6 +571,26 @@ function CourseCard({
   onRenew: (course: MarketplaceCourse) => void
 }) {
   const tags = course.catalog.tags
+  const nextListingExpiry = getNextListingExpiry(course.listings)
+  const nextListingExpiryLabel =
+    course.listings.length === 0
+      ? '—'
+      : nextListingExpiry
+      ? formatTimestampRelative(nextListingExpiry)
+      : 'No expiry'
+  const userState = course.user
+  const userHasPass = Boolean(userState?.hasPass)
+  const transferReadyLabel = userState?.hasPass
+    ? userState.canTransfer
+      ? 'Now'
+      : formatTimestampRelative(userState.transferAvailableAt)
+    : '—'
+  const userExpiryLabel = userState?.hasPass ? formatTimestampRelative(userState.expiresAt) : '—'
+  const listDisabledReason = !userState?.hasPass
+    ? 'Mint a membership pass before listing.'
+    : !userState.canTransfer
+    ? 'Listing unlocks after the transfer cooldown ends.'
+    : ''
 
   return (
     <div className='flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/80 shadow-sm backdrop-blur'>
@@ -526,7 +599,7 @@ function CourseCard({
         <div className='flex items-start justify-between gap-3'>
           <div>
             <p className='text-xs uppercase tracking-wide text-muted-foreground'>
-              {course.catalog.category} • {course.catalog.difficulty}
+              Membership pass #{course.catalog.courseId.toString()}
             </p>
             <h2 className='mt-1 text-xl font-semibold text-foreground'>
               {course.catalog.title}
@@ -556,11 +629,36 @@ function CourseCard({
           <StatItem label='Live listings' value={String(course.stats.listingCount)} />
           <StatItem label='Membership duration' value={formatDurationShort(course.stats.duration)} />
           <StatItem label='Transfer cooldown' value={formatDurationShort(course.stats.cooldown)} />
-          <StatItem
-            label='Your expiry'
-            value={course.user?.hasPass ? formatTimestampRelative(course.user.expiresAt) : '—'}
-          />
+          <StatItem label='Next listing expiry' value={nextListingExpiryLabel} />
+          <StatItem label='Transfer ready' value={transferReadyLabel} />
+          <StatItem label='Your pass expiry' value={userExpiryLabel} />
         </dl>
+
+        {course.listings.length > 0 && (
+          <div className='space-y-2 rounded-2xl border border-dashed border-border/60 bg-muted/30 p-4 text-xs'>
+            <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
+              Active listings
+            </p>
+            <div className='space-y-1'>
+              {course.listings.map(listing => (
+                <div
+                  key={`${listing.seller}-${listing.listedAt.toString()}`}
+                  className='flex flex-wrap items-center justify-between gap-2 text-muted-foreground'
+                >
+                  <span className='font-mono text-[0.7rem] text-foreground'>
+                    {shortenAddress(listing.seller)}
+                  </span>
+                  <span>
+                    {formatUSDC(listing.priceUSDC)} •{' '}
+                    {listing.expiresAt === 0n
+                      ? 'No expiry'
+                      : `Expires ${formatTimestampRelative(listing.expiresAt)}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className='flex flex-wrap gap-2 pt-2'>
           <Button className='flex-1' onClick={() => onBuyPrimary(course)}>
@@ -577,7 +675,8 @@ function CourseCard({
           <Button
             className='flex-1'
             variant='outline'
-            disabled={!course.user?.hasPass}
+            disabled={!userHasPass || !course.user?.canTransfer}
+            title={listDisabledReason || undefined}
             onClick={() => onList(course)}
           >
             List pass
@@ -585,7 +684,7 @@ function CourseCard({
           <Button
             className='flex-1'
             variant='ghost'
-            disabled={!course.user?.hasPass}
+            disabled={!userHasPass}
             onClick={() => onRenew(course)}
           >
             Renew
@@ -636,9 +735,11 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
                   {formatUSDC(listing.priceUSDC)}
                 </p>
               </div>
-              {listing.expiresAt !== 0n && (
-                <p className='text-xs text-muted-foreground'>Expires {formatTimestampRelative(listing.expiresAt)}</p>
-              )}
+              <p className='text-xs text-muted-foreground'>
+                {listing.expiresAt === 0n
+                  ? 'No expiry scheduled'
+                  : `Expires ${formatTimestampRelative(listing.expiresAt)}`}
+              </p>
             </div>
           ))}
         </div>
@@ -650,32 +751,53 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
 function ListDialog({
   state,
   onClose,
-  onSubmit
+  onSubmit,
+  eligibleCourses
 }: {
   state: { open: boolean; course?: MarketplaceCourse }
   onClose: () => void
   onSubmit: (payload: { price: string; duration: bigint; course: MarketplaceCourse }) => Promise<void>
+  eligibleCourses: MarketplaceCourse[]
 }) {
   const [price, setPrice] = useState(SUBSCRIPTION_PRICE_USDC)
   const [duration, setDuration] = useState<bigint>(DEFAULT_LISTING_DURATION)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedCourse, setSelectedCourse] = useState<MarketplaceCourse | undefined>(state.course)
 
   useEffect(() => {
     if (state.open) {
       setPrice(SUBSCRIPTION_PRICE_USDC)
       setDuration(DEFAULT_LISTING_DURATION)
+      const fallback = state.course ?? eligibleCourses[0]
+      setSelectedCourse(fallback)
     }
-  }, [state.open])
+  }, [state.open, state.course, eligibleCourses])
+
+  const handleCourseChange = (courseId: string) => {
+    const nextCourse = eligibleCourses.find(
+      entry => entry.catalog.courseId.toString() === courseId
+    )
+    setSelectedCourse(nextCourse)
+  }
 
   const handleSubmit = async () => {
-    if (!state.course) return
+    if (!selectedCourse) return
     setIsSubmitting(true)
     try {
-      await onSubmit({ price, duration, course: state.course })
+      await onSubmit({ price, duration, course: selectedCourse })
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const transferStatus = selectedCourse?.user
+    ? selectedCourse.user.canTransfer
+      ? 'ready now'
+      : `available ${formatTimestampRelative(selectedCourse.user.transferAvailableAt)}`
+    : null
+  const passExpiryStatus = selectedCourse?.user?.hasPass
+    ? formatTimestampRelative(selectedCourse.user.expiresAt)
+    : '—'
 
   return (
     <Dialog open={state.open} onOpenChange={open => (!open ? onClose() : null)}>
@@ -688,9 +810,50 @@ function ListDialog({
         </DialogHeader>
 
         <div className='space-y-4'>
+          {eligibleCourses.length > 1 && (
+            <div className='space-y-2'>
+              <Label htmlFor='listing-course'>Membership</Label>
+              <Select
+                value={selectedCourse?.catalog.courseId.toString() ?? ''}
+                onValueChange={handleCourseChange}
+              >
+                <SelectTrigger id='listing-course'>
+                  <SelectValue placeholder='Choose a membership' />
+                </SelectTrigger>
+                <SelectContent>
+                  {eligibleCourses.map(option => (
+                    <SelectItem
+                      key={option.catalog.courseId.toString()}
+                      value={option.catalog.courseId.toString()}
+                    >
+                      {option.catalog.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className='rounded-2xl bg-muted/40 p-4 text-sm'>
-            <p className='font-medium text-foreground'>{state.course?.catalog.title}</p>
-            <p className='text-muted-foreground'>Cooldown {formatDurationShort(state.course?.stats.cooldown ?? 0n)}</p>
+            {selectedCourse ? (
+              <>
+                <p className='font-medium text-foreground'>{selectedCourse.catalog.title}</p>
+                <p className='text-muted-foreground'>
+                  Transfer status {transferStatus ?? 'unavailable'}
+                </p>
+                <p className='text-muted-foreground'>
+                  Pass expires {passExpiryStatus}
+                </p>
+                <p className='text-muted-foreground'>
+                  Cooldown {formatDurationShort(selectedCourse.stats.cooldown)}
+                </p>
+              </>
+            ) : (
+              <p className='text-muted-foreground'>
+                No memberships are ready to list. Mint a pass or wait for the transfer cooldown to
+                end.
+              </p>
+            )}
           </div>
 
           <div className='space-y-2'>
@@ -729,8 +892,8 @@ function ListDialog({
           <Button variant='ghost' onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Listing…' : 'Create listing'}
+          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedCourse}>
+            {isSubmitting ? 'Listing...' : 'Create listing'}
           </Button>
         </DialogFooter>
       </DialogContent>
