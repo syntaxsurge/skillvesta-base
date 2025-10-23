@@ -18,11 +18,11 @@ import {
 } from '@/components/ui/dialog'
 import { api } from '@/convex/_generated/api'
 import {
+  MARKETPLACE_CONTRACT_ADDRESS,
   MEMBERSHIP_CONTRACT_ADDRESS,
-  REVENUE_SPLIT_ROUTER_ADDRESS,
   USDC_CONTRACT_ADDRESS
 } from '@/lib/config'
-import { revenueSplitRouterAbi } from '@/lib/onchain/abi'
+import { membershipMarketplaceAbi } from '@/lib/onchain/abi'
 import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { formatTimestampRelative } from '@/lib/time'
@@ -31,7 +31,7 @@ import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/members
 import { formatGroupPriceLabel } from '../utils/price'
 
 export function JoinGroupButton() {
-  const { group, owner, isOwner, isMember, administrators, membership } = useGroupContext()
+  const { group, owner, isOwner, isMember, membership } = useGroupContext()
   const { address } = useAccount()
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
@@ -39,7 +39,7 @@ export function JoinGroupButton() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const usdcAddress = USDC_CONTRACT_ADDRESS as `0x${string}` | null
-  const routerAddress = REVENUE_SPLIT_ROUTER_ADDRESS as `0x${string}` | ''
+  const marketplaceAddress = MARKETPLACE_CONTRACT_ADDRESS as `0x${string}` | null
   const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | null
   const membershipService = useMemo(() => {
     if (!publicClient || !membershipAddress) return null
@@ -49,45 +49,6 @@ export function JoinGroupButton() {
     })
   }, [publicClient, membershipAddress])
   const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
-
-  const revenueSplits = useMemo(() => {
-    if (!owner?.walletAddress) {
-      return null
-    }
-
-    const normalizedOwner = owner.walletAddress as `0x${string}`
-    const recipients: `0x${string}`[] = []
-    const shares: number[] = []
-
-    const validAdmins = administrators.filter(admin => admin.shareBps > 0)
-
-    let adminShareTotal = 0
-    validAdmins.forEach(admin => {
-      const wallet = admin.user.walletAddress as `0x${string}`
-      recipients.push(wallet)
-      shares.push(admin.shareBps)
-      adminShareTotal += admin.shareBps
-    })
-
-    const normalizedAdminShare = Math.min(adminShareTotal, 10000)
-    const ownerShare = Math.max(0, 10000 - normalizedAdminShare)
-
-    if (ownerShare > 0 || recipients.length === 0) {
-      recipients.push(normalizedOwner)
-      shares.push(ownerShare > 0 ? ownerShare : 10000)
-    }
-
-    const totalShare = shares.reduce((total, value) => total + value, 0)
-    if (totalShare !== 10000 && shares.length > 0) {
-      const diff = 10000 - totalShare
-      shares[shares.length - 1] = Math.max(0, shares[shares.length - 1] + diff)
-    }
-
-    return {
-      recipients,
-      shares
-    }
-  }, [administrators, owner?.walletAddress])
 
   if (isOwner) {
     return (
@@ -127,8 +88,8 @@ export function JoinGroupButton() {
       toast.error('USDC contract address not configured.')
       return
     }
-    if (requiresPayment && !routerAddress) {
-      toast.error('Revenue split router contract not configured.')
+    if (requiresPayment && !marketplaceAddress) {
+      toast.error('Marketplace contract address not configured.')
       return
     }
 
@@ -152,18 +113,23 @@ export function JoinGroupButton() {
         }
       }
 
-      if (requiresPayment && !skipPayment && membership?.passExpiresAt && membership.passExpiresAt > Date.now()) {
+      if (
+        requiresPayment &&
+        !skipPayment &&
+        membership?.passExpiresAt &&
+        membership.passExpiresAt > Date.now()
+      ) {
         skipPayment = true
         passExpiryMs = membership.passExpiresAt
       }
 
       if (requiresPayment && !skipPayment) {
-        if (
-          !revenueSplits ||
-          revenueSplits.recipients.length === 0 ||
-          revenueSplits.recipients.length !== revenueSplits.shares.length
-        ) {
-          toast.error('Revenue shares are not configured correctly.')
+        if (!marketplaceAddress) {
+          toast.error('Marketplace contract address not configured.')
+          return
+        }
+        if (!membershipCourseId) {
+          toast.error('Membership course id missing. Contact the group owner.')
           return
         }
 
@@ -180,13 +146,11 @@ export function JoinGroupButton() {
           return
         }
 
-        const resolvedRouter = routerAddress as `0x${string}`
-
         const allowance = (await publicClient.readContract({
           address: usdcAddress!,
           abi: erc20Abi,
           functionName: 'allowance',
-          args: [address, resolvedRouter]
+          args: [address, marketplaceAddress]
         })) as bigint
 
         if (allowance < amount) {
@@ -194,25 +158,32 @@ export function JoinGroupButton() {
             address: usdcAddress!,
             abi: erc20Abi,
             functionName: 'approve',
-            args: [resolvedRouter, maxUint256]
+            args: [marketplaceAddress, maxUint256]
           })
           await publicClient.waitForTransactionReceipt({ hash: approvalHash })
         }
 
         const hash = await writeContractAsync({
-          address: resolvedRouter,
-          abi: revenueSplitRouterAbi,
-          functionName: 'splitTransfer',
-          args: [
-            usdcAddress!,
-            revenueSplits.recipients,
-            revenueSplits.shares,
-            amount
-          ]
+          address: marketplaceAddress,
+          abi: membershipMarketplaceAbi,
+          functionName: 'purchasePrimary',
+          args: [membershipCourseId, amount]
         })
 
         txHash = hash
         await publicClient.waitForTransactionReceipt({ hash })
+
+        if (membershipService) {
+          try {
+            const state = await membershipService.getPassState(
+              membershipCourseId,
+              address as Address
+            )
+            passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
+          } catch (error) {
+            console.error('Failed to resolve pass expiry after purchase', error)
+          }
+        }
       }
 
       await joinGroup({
