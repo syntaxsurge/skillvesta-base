@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { parseUnits, type Address } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 
+import { LoadingIndicator } from '@/components/feedback/loading-indicator'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -197,8 +198,7 @@ export function MarketplaceShell() {
           }
         })
       )
-    },
-    refetchInterval: 30_000
+    }
   })
 
   const filteredCourses = useMemo(() => {
@@ -415,7 +415,12 @@ export function MarketplaceShell() {
         </aside>
 
         <main className='flex-1 space-y-6'>
-          {isLoading && <p className='text-muted-foreground'>Loading marketplace data…</p>}
+          {isLoading && (
+            <div className='flex flex-col items-center gap-3 text-muted-foreground'>
+              <LoadingIndicator />
+              <p>Loading marketplace data…</p>
+            </div>
+          )}
 
           {!isLoading && filteredCourses.length === 0 && (
             <p className='text-muted-foreground'>No courses match your filters.</p>
