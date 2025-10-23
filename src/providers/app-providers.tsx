@@ -5,6 +5,7 @@ import { ReactNode, useMemo } from 'react'
 import { OnchainKitProvider } from '@coinbase/onchainkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
+import { ThemeProvider as NextThemeProvider } from 'next-themes'
 
 import { ONCHAINKIT_API_KEY, BASE_RPC_URL } from '@/lib/config'
 import { ACTIVE_CHAIN, getWagmiConfig } from '@/lib/wagmi'
@@ -40,17 +41,24 @@ export function AppProviders({ children }: AppProvidersProps) {
   )
 
   return (
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <OnchainKitProvider
-          apiKey={apiKey}
-          chain={ACTIVE_CHAIN}
-          rpcUrl={BASE_RPC_URL}
-          config={onchainKitConfig}
-        >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </OnchainKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <NextThemeProvider
+      attribute='class'
+      defaultTheme='system'
+      enableSystem
+      disableTransitionOnChange
+    >
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <OnchainKitProvider
+            apiKey={apiKey}
+            chain={ACTIVE_CHAIN}
+            rpcUrl={BASE_RPC_URL}
+            config={onchainKitConfig}
+          >
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </OnchainKitProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </NextThemeProvider>
   )
 }

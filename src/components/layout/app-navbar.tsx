@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { GroupSwitcher } from './group-switcher'
 import { Logo } from './logo'
 import { WalletMenu } from './wallet-menu'
+import { ThemeToggle } from './theme-toggle'
 
 export function AppNavbar() {
   const pathname = usePathname()
@@ -30,7 +31,10 @@ export function AppNavbar() {
             Marketplace
           </Link>
         </div>
-        <WalletMenu />
+        <div className='flex items-center gap-2'>
+          <ThemeToggle />
+          <WalletMenu />
+        </div>
       </div>
     </header>
   )

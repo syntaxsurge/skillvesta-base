@@ -21,6 +21,10 @@ type GroupContextValue = {
   memberCount: number
   isOwner: boolean
   isMember: boolean
+  administrators: Array<{
+    user: Doc<'users'>
+    shareBps: number
+  }>
   access: {
     about: boolean
     feed: boolean
@@ -105,7 +109,8 @@ export function GroupProvider({
         currentUser: currentUser ?? null,
         isOwner: viewerState.viewer.isOwner,
         isMember: viewerState.viewer.isMember,
-        access: viewerState.viewer.canAccess
+        access: viewerState.viewer.canAccess,
+        administrators: viewerState.administrators ?? []
       }
     }
   }, [currentUser, viewerState])

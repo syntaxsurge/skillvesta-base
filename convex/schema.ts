@@ -32,6 +32,13 @@ export default defineSchema({
     .index('by_name', ['name'])
     .index('by_ownerId', ['ownerId'])
     .index('by_subscriptionId', ['subscriptionId']),
+  groupAdministrators: defineTable({
+    groupId: v.id('groups'),
+    adminId: v.id('users'),
+    shareBps: v.number()
+  })
+    .index('by_groupId', ['groupId'])
+    .index('by_adminId', ['adminId']),
   userGroups: defineTable({
     userId: v.id('users'),
     groupId: v.id('groups')

@@ -1,8 +1,13 @@
 import { v } from 'convex/values'
 
-import { Doc } from './_generated/dataModel'
-import { internalMutation, mutation, query } from './_generated/server'
-import { getUserByWallet, requireUserByWallet } from './utils'
+import { Doc, Id } from './_generated/dataModel'
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx
+} from './_generated/server'
+import { getUserByWallet, requireUserByWallet, normalizeAddress } from './utils'
 
 function normalizeTimestamp(timestamp: number) {
   return timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp
@@ -14,6 +19,73 @@ const MAX_GALLERY_ITEMS = 10
 
 type VisibilityOption = 'public' | 'private'
 type BillingCadenceOption = 'free' | 'monthly'
+
+type AdministratorInput = {
+  walletAddress: string
+  shareBps: number
+}
+
+type SanitizedAdministrator = {
+  adminId: Id<'users'>
+  shareBps: number
+  walletAddress: string
+}
+
+async function sanitizeAdministrators(
+  ctx: MutationCtx,
+  owner: Doc<'users'>,
+  administrators: AdministratorInput[] | undefined
+) {
+  if (!administrators) {
+    return null
+  }
+
+  const ownerAddress = normalizeAddress(owner.walletAddress)
+  const deduped = new Map<string, SanitizedAdministrator>()
+
+  for (const entry of administrators) {
+    const address = entry.walletAddress?.trim()
+    if (!address) continue
+
+    const normalized = normalizeAddress(address)
+    if (!normalized || normalized === ownerAddress) {
+      continue
+    }
+
+    const rawShare = Math.round(entry.shareBps)
+    if (!Number.isFinite(rawShare) || rawShare <= 0) {
+      continue
+    }
+
+    const shareBps = Math.min(10000, rawShare)
+    const existing = deduped.get(normalized)
+
+    if (existing) {
+      const combinedShare = Math.min(10000, existing.shareBps + shareBps)
+      deduped.set(normalized, {
+        ...existing,
+        shareBps: combinedShare
+      })
+      continue
+    }
+
+    const adminUser = await requireUserByWallet(ctx, normalized)
+    deduped.set(normalized, {
+      adminId: adminUser._id,
+      shareBps,
+      walletAddress: normalized
+    })
+  }
+
+  const sanitized = Array.from(deduped.values())
+  const totalShare = sanitized.reduce((total, admin) => total + admin.shareBps, 0)
+
+  if (totalShare > 10000) {
+    throw new Error('Administrator revenue shares cannot exceed 100%.')
+  }
+
+  return sanitized
+}
 
 function sanitizeUrl(value: string | undefined | null) {
   const trimmed = value?.trim()
@@ -89,18 +161,29 @@ export const create = mutation({
     billingCadence: v.optional(
       v.union(v.literal('free'), v.literal('monthly'))
     ),
-    price: v.optional(v.number())
+    price: v.optional(v.number()),
+    administrators: v.optional(
+      v.array(
+        v.object({
+          walletAddress: v.string(),
+          shareBps: v.number()
+        })
+      )
+    )
   },
   handler: async (ctx, args) => {
     const owner = await requireUserByWallet(ctx, args.ownerAddress)
     const now = Date.now()
 
-     const price = typeof args.price === 'number' && args.price > 0 ? args.price : 0
-     const visibility = resolveVisibility(args.visibility as VisibilityOption | undefined)
-     const billingCadence = resolveBillingCadence(
-       args.billingCadence as BillingCadenceOption | undefined,
-       price
-     )
+    const price =
+      typeof args.price === 'number' && args.price > 0 ? args.price : 0
+    const visibility = resolveVisibility(
+      args.visibility as VisibilityOption | undefined
+    )
+    const billingCadence = resolveBillingCadence(
+      args.billingCadence as BillingCadenceOption | undefined,
+      price
+    )
 
     const groupId = await ctx.db.insert('groups', {
       name: args.name,
@@ -117,6 +200,21 @@ export const create = mutation({
       price,
       memberNumber: 1
     })
+
+    if (args.administrators) {
+      const admins = await sanitizeAdministrators(ctx, owner, args.administrators)
+      if (admins && admins.length > 0) {
+        await Promise.all(
+          admins.map(admin =>
+            ctx.db.insert('groupAdministrators', {
+              groupId,
+              adminId: admin.adminId,
+              shareBps: admin.shareBps
+            })
+          )
+        )
+      }
+    }
 
     await ctx.db.insert('userGroups', {
       userId: owner._id,
@@ -142,7 +240,15 @@ export const updateSettings = mutation({
     billingCadence: v.optional(
       v.union(v.literal('free'), v.literal('monthly'))
     ),
-    price: v.optional(v.number())
+    price: v.optional(v.number()),
+    administrators: v.optional(
+      v.array(
+        v.object({
+          walletAddress: v.string(),
+          shareBps: v.number()
+        })
+      )
+    )
   },
   handler: async (ctx, args) => {
     const owner = await requireUserByWallet(ctx, args.ownerAddress)
@@ -197,6 +303,50 @@ export const updateSettings = mutation({
       | undefined
     const resolvedCadence = resolveBillingCadence(requestedCadence, nextPrice)
     patch.billingCadence = resolvedCadence
+
+    if (args.administrators !== undefined) {
+      const admins =
+        (await sanitizeAdministrators(ctx, owner, args.administrators)) ?? []
+
+      const existingAdmins = await ctx.db
+        .query('groupAdministrators')
+        .withIndex('by_groupId', q => q.eq('groupId', args.id))
+        .collect()
+
+      const desired = new Map<Id<'users'>, SanitizedAdministrator>()
+      admins.forEach(admin => desired.set(admin.adminId, admin))
+
+      const existingByAdmin = new Map<Id<'users'>, typeof existingAdmins[number]>()
+      existingAdmins.forEach(entry => existingByAdmin.set(entry.adminId, entry))
+
+      await Promise.all(
+        existingAdmins.map(async entry => {
+          if (!desired.has(entry.adminId)) {
+            await ctx.db.delete(entry._id)
+          }
+        })
+      )
+
+      await Promise.all(
+        admins.map(async admin => {
+          const existing = existingByAdmin.get(admin.adminId)
+          if (!existing) {
+            await ctx.db.insert('groupAdministrators', {
+              groupId: args.id,
+              adminId: admin.adminId,
+              shareBps: admin.shareBps
+            })
+            return
+          }
+
+          if (existing.shareBps !== admin.shareBps) {
+            await ctx.db.patch(existing._id, {
+              shareBps: admin.shareBps
+            })
+          }
+        })
+      )
+    }
 
     await ctx.db.patch(args.id, patch)
   }
@@ -257,6 +407,24 @@ export const viewer = query({
 
     const owner = await ctx.db.get(group.ownerId)
 
+    const administratorsRaw = await ctx.db
+      .query('groupAdministrators')
+      .withIndex('by_groupId', q => q.eq('groupId', groupId))
+      .collect()
+
+    const administrators = await Promise.all(
+      administratorsRaw.map(async admin => {
+        const user = await ctx.db.get(admin.adminId)
+        if (!user) {
+          return null
+        }
+        return {
+          user,
+          shareBps: admin.shareBps
+        }
+      })
+    )
+
     let isMember = false
     if (viewerId) {
       const membership = await ctx.db
@@ -303,7 +471,11 @@ export const viewer = query({
         }
       },
       memberCount:
-        typeof group.memberNumber === 'number' ? group.memberNumber : 0
+        typeof group.memberNumber === 'number' ? group.memberNumber : 0,
+      administrators: administrators.filter(
+        (entry): entry is { user: Doc<'users'>; shareBps: number } =>
+          entry !== null
+      )
     }
   }
 })
