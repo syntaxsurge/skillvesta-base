@@ -131,6 +131,15 @@ function sanitizeGallery(urls: string[] | undefined) {
   return sanitized.slice(0, MAX_GALLERY_ITEMS)
 }
 
+function sanitizeSubscriptionId(value: string | undefined | null) {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  if (!/^[0-9]+$/.test(trimmed)) {
+    return undefined
+  }
+  return trimmed
+}
+
 type MediaReference =
   | {
       url: string
@@ -301,6 +310,7 @@ export const updateSettings = mutation({
       v.union(v.literal('free'), v.literal('monthly'))
     ),
     price: v.optional(v.number()),
+    subscriptionId: v.optional(v.string()),
     administrators: v.optional(
       v.array(
         v.object({
@@ -342,6 +352,10 @@ export const updateSettings = mutation({
 
     if (args.tags !== undefined) {
       patch.tags = sanitizeTags(args.tags)
+    }
+
+    if (args.subscriptionId !== undefined) {
+      patch.subscriptionId = sanitizeSubscriptionId(args.subscriptionId)
     }
 
     const resolvedVisibility =

@@ -84,6 +84,7 @@ const settingsSchema = z
     visibility: z.enum(['public', 'private']).default('private'),
     billingCadence: z.enum(['free', 'monthly']).default('free'),
     price: z.string().optional(),
+    membershipCourseId: z.string().optional(),
     administrators: z.array(administratorSchema).optional()
   })
   .superRefine((data, ctx) => {
@@ -157,6 +158,26 @@ const settingsSchema = z
         })
       }
     })
+    const courseIdRaw = data.membershipCourseId?.trim() ?? ''
+    if (courseIdRaw && !/^[0-9]+$/.test(courseIdRaw)) {
+      ctx.addIssue({
+        path: ['membershipCourseId'],
+        code: z.ZodIssueCode.custom,
+        message: 'Membership course ID must be a numeric value.'
+      })
+    }
+
+    const requiresCourseId =
+      data.billingCadence === 'monthly' ||
+      (data.price && Number(data.price) > 0)
+
+    if (requiresCourseId && courseIdRaw === '') {
+      ctx.addIssue({
+        path: ['membershipCourseId'],
+        code: z.ZodIssueCode.custom,
+        message: 'Provide the ERC-1155 course ID used for memberships.'
+      })
+    }
   })
 
 type GroupSettingsFormProps = {
@@ -209,6 +230,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
       visibility: group.visibility ?? 'private',
       billingCadence: group.billingCadence ?? (group.price > 0 ? 'monthly' : 'free'),
       price: group.price ? String(group.price) : '',
+      membershipCourseId: group.subscriptionId ?? '',
       administrators: existingAdministrators.map(admin => ({
         walletAddress: admin.user.walletAddress,
         share: (admin.shareBps / 100).toString()
@@ -583,6 +605,12 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         .map(url => normalizeMediaInput(url))
         .filter(Boolean)
 
+      const subscriptionIdRaw = values.membershipCourseId?.trim() ?? ''
+      const subscriptionId =
+        subscriptionIdRaw && /^[0-9]+$/.test(subscriptionIdRaw)
+          ? subscriptionIdRaw
+          : undefined
+
       const tags = values.tags
         ?.split(',')
         .map(tag => tag.trim().toLowerCase())
@@ -637,6 +665,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         visibility: values.visibility,
         billingCadence: parsedPrice > 0 ? 'monthly' : values.billingCadence,
         price: parsedPrice,
+        subscriptionId,
         administrators: normalizedAdministrators
       })
 
@@ -754,6 +783,28 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
             )}
           />
         )}
+
+        <FormField
+          control={form.control}
+          name='membershipCourseId'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Membership course ID</FormLabel>
+              <FormControl>
+                <Input
+                  inputMode='numeric'
+                  pattern='\d*'
+                  placeholder='1'
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                Numeric identifier of the ERC-1155 course in your membership contract. Required for paid groups; optional for free communities.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className='space-y-3 rounded-xl border border-border p-4'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
