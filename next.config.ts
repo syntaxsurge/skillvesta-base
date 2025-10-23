@@ -54,6 +54,15 @@ const nextConfig: NextConfig = {
       }
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: '/demo-video',
+        destination: 'https://www.youtube.com/watch?v=K4TOrB7at0Y',
+        permanent: false
+      }
+    ]
+  },
   webpack(config) {
     config.resolve.alias ??= {}
     config.resolve.alias['@react-native-async-storage/async-storage'] =
