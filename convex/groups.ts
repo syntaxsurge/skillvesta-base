@@ -131,13 +131,12 @@ function sanitizeGallery(urls: string[] | undefined) {
   return sanitized.slice(0, MAX_GALLERY_ITEMS)
 }
 
-function sanitizeSubscriptionId(value: string | undefined | null) {
-  const trimmed = value?.trim()
-  if (!trimmed) return undefined
-  if (!/^[0-9]+$/.test(trimmed)) {
-    return undefined
-  }
-  return trimmed
+function generateSubscriptionId() {
+  const timestamp = Date.now().toString()
+  const random = Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, '0')
+  return `${timestamp}${random}`
 }
 
 type MediaReference =
@@ -265,6 +264,7 @@ export const create = mutation({
       visibility,
       billingCadence,
       ownerId: owner._id,
+      subscriptionId: generateSubscriptionId(),
       endsOn: now + DEFAULT_SUBSCRIPTION_DURATION_MS,
       price,
       memberNumber: 1
@@ -310,7 +310,6 @@ export const updateSettings = mutation({
       v.union(v.literal('free'), v.literal('monthly'))
     ),
     price: v.optional(v.number()),
-    subscriptionId: v.optional(v.string()),
     administrators: v.optional(
       v.array(
         v.object({
@@ -334,6 +333,10 @@ export const updateSettings = mutation({
 
     const patch: Partial<Doc<'groups'>> = {}
 
+    if (!group.subscriptionId) {
+      patch.subscriptionId = generateSubscriptionId()
+    }
+
     if (args.shortDescription !== undefined) {
       patch.shortDescription = sanitizeText(args.shortDescription)
     }
@@ -352,10 +355,6 @@ export const updateSettings = mutation({
 
     if (args.tags !== undefined) {
       patch.tags = sanitizeTags(args.tags)
-    }
-
-    if (args.subscriptionId !== undefined) {
-      patch.subscriptionId = sanitizeSubscriptionId(args.subscriptionId)
     }
 
     const resolvedVisibility =

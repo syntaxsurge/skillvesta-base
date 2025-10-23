@@ -9,10 +9,10 @@ type GroupDoc = Doc<'groups'>
 export function resolveMembershipCourseId(group: GroupDoc): bigint | null {
   const subscriptionId = group.subscriptionId
   if (subscriptionId) {
-    const numeric = Number(subscriptionId)
-    if (!Number.isNaN(numeric) && numeric > 0) {
+    const trimmed = subscriptionId.trim()
+    if (/^[0-9]+$/.test(trimmed)) {
       try {
-        return BigInt(numeric)
+        return BigInt(trimmed)
       } catch {
         // ignore parse errors on malformed values
       }
