@@ -82,7 +82,7 @@ export function GroupSwitcher() {
         </button>
 
         <Link
-          href='/'
+          href='/groups'
           onClick={() => setOpen(false)}
           className='flex items-center gap-2 rounded-md px-2 py-2 text-sm font-medium hover:bg-muted'
         >
