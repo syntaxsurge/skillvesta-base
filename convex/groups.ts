@@ -5,7 +5,8 @@ import {
   internalMutation,
   mutation,
   query,
-  type MutationCtx
+  type MutationCtx,
+  type QueryCtx
 } from './_generated/server'
 import { getUserByWallet, requireUserByWallet, normalizeAddress } from './utils'
 
@@ -16,6 +17,7 @@ function normalizeTimestamp(timestamp: number) {
 const DEFAULT_SUBSCRIPTION_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 const MAX_TAGS = 8
 const MAX_GALLERY_ITEMS = 10
+const STORAGE_PREFIX = 'storage:'
 
 type VisibilityOption = 'public' | 'private'
 type BillingCadenceOption = 'free' | 'monthly'
@@ -87,9 +89,15 @@ async function sanitizeAdministrators(
   return sanitized
 }
 
-function sanitizeUrl(value: string | undefined | null) {
+function sanitizeMediaReference(value: string | undefined | null) {
   const trimmed = value?.trim()
   if (!trimmed) return undefined
+
+  if (trimmed.startsWith(STORAGE_PREFIX)) {
+    const reference = trimmed.slice(STORAGE_PREFIX.length).trim()
+    return reference ? `${STORAGE_PREFIX}${reference}` : undefined
+  }
+
   try {
     return new URL(trimmed).toString()
   } catch {
@@ -118,9 +126,61 @@ function sanitizeTags(tags: string[] | undefined) {
 function sanitizeGallery(urls: string[] | undefined) {
   if (!urls?.length) return []
   const sanitized = urls
-    .map(url => sanitizeUrl(url))
+    .map(url => sanitizeMediaReference(url))
     .filter((value): value is string => Boolean(value))
   return sanitized.slice(0, MAX_GALLERY_ITEMS)
+}
+
+type MediaReference =
+  | {
+      url: string
+      storageId?: Id<'_storage'>
+      source: string
+    }
+  | null
+
+async function resolveMediaReference(
+  ctx: QueryCtx | MutationCtx,
+  value: string | undefined | null
+): Promise<MediaReference> {
+  if (!value) {
+    return null
+  }
+
+  if (value.startsWith(STORAGE_PREFIX)) {
+    const reference = value.slice(STORAGE_PREFIX.length).trim()
+    if (!reference) return null
+
+    const storageId = reference as Id<'_storage'>
+    const url = await ctx.storage.getUrl(storageId)
+    if (!url) return null
+
+    return {
+      url,
+      storageId,
+      source: `${STORAGE_PREFIX}${reference}`
+    }
+  }
+
+  return {
+    url: value,
+    source: value
+  }
+}
+
+async function resolveGallery(
+  ctx: QueryCtx | MutationCtx,
+  values: string[] | undefined | null
+) {
+  if (!values?.length) return []
+
+  const resolved = await Promise.all(
+    values.map(value => resolveMediaReference(ctx, value))
+  )
+
+  return resolved.filter(
+    (entry): entry is NonNullable<MediaReference> => entry !== null
+  )
 }
 
 function resolveVisibility(
@@ -189,8 +249,8 @@ export const create = mutation({
       name: args.name,
       description: args.description,
       shortDescription: sanitizeText(args.shortDescription),
-      aboutUrl: sanitizeUrl(args.aboutUrl),
-      thumbnailUrl: sanitizeUrl(args.thumbnailUrl),
+      aboutUrl: sanitizeMediaReference(args.aboutUrl),
+      thumbnailUrl: sanitizeMediaReference(args.thumbnailUrl),
       galleryUrls: sanitizeGallery(args.galleryUrls),
       tags: sanitizeTags(args.tags),
       visibility,
@@ -269,11 +329,11 @@ export const updateSettings = mutation({
     }
 
     if (args.aboutUrl !== undefined) {
-      patch.aboutUrl = sanitizeUrl(args.aboutUrl)
+      patch.aboutUrl = sanitizeMediaReference(args.aboutUrl)
     }
 
     if (args.thumbnailUrl !== undefined) {
-      patch.thumbnailUrl = sanitizeUrl(args.thumbnailUrl)
+      patch.thumbnailUrl = sanitizeMediaReference(args.thumbnailUrl)
     }
 
     if (args.galleryUrls !== undefined) {
@@ -380,7 +440,11 @@ export const list = query({
       .withIndex('by_userId', q => q.eq('userId', user._id))
       .collect()
 
-    const groups = userGroups.map(async userGroup => {
+    const activeMemberships = userGroups.filter(
+      membership => (membership.status ?? 'active') === 'active'
+    )
+
+    const groups = activeMemberships.map(async userGroup => {
       const group = await ctx.db.get(userGroup.groupId)
       return group
     })
@@ -390,7 +454,22 @@ export const list = query({
       group => group !== null
     ) as Doc<'groups'>[]
 
-    return filteredGroups
+    const normalized = await Promise.all(
+      filteredGroups.map(async group => {
+        const [thumbnailMedia, galleryMedia] = await Promise.all([
+          resolveMediaReference(ctx, group.thumbnailUrl),
+          resolveGallery(ctx, group.galleryUrls)
+        ])
+
+        return {
+          ...group,
+          thumbnailUrl: thumbnailMedia?.url,
+          galleryUrls: galleryMedia.map(entry => entry.url)
+        } satisfies Doc<'groups'>
+      })
+    )
+
+    return normalized
   }
 })
 
@@ -426,14 +505,36 @@ export const viewer = query({
     )
 
     let isMember = false
+    let membershipInfo:
+      | {
+          status: 'active' | 'left'
+          passExpiresAt?: number
+          leftAt?: number
+          joinedAt?: number
+        }
+      | null = null
     if (viewerId) {
       const membership = await ctx.db
         .query('userGroups')
         .withIndex('by_userId', q => q.eq('userId', viewerId))
         .filter(q => q.eq(q.field('groupId'), groupId))
         .first()
-      isMember = Boolean(membership)
+      if (membership) {
+        const status = membership.status ?? 'active'
+        membershipInfo = {
+          status,
+          passExpiresAt: membership.passExpiresAt,
+          leftAt: membership.leftAt,
+          joinedAt: membership.joinedAt
+        }
+        isMember = status === 'active'
+      }
     }
+
+    const [thumbnailMedia, galleryMedia] = await Promise.all([
+      resolveMediaReference(ctx, group.thumbnailUrl),
+      resolveGallery(ctx, group.galleryUrls)
+    ])
 
     const normalizedVisibility = resolveVisibility(
       group.visibility as VisibilityOption | undefined
@@ -447,10 +548,12 @@ export const viewer = query({
 
     const normalizedGroup: Doc<'groups'> = {
       ...group,
+      thumbnailUrl: thumbnailMedia?.url,
+      galleryUrls: galleryMedia.map(entry => entry.url),
       visibility: normalizedVisibility,
       billingCadence: normalizedBilling,
       tags: group.tags ?? [],
-      galleryUrls: group.galleryUrls ?? []
+      aboutUrl: group.aboutUrl ?? undefined
     }
 
     const isOwner = viewerId ? group.ownerId === viewerId : false
@@ -460,6 +563,10 @@ export const viewer = query({
     return {
       group: normalizedGroup,
       owner: owner ?? null,
+      media: {
+        thumbnail: thumbnailMedia,
+        gallery: galleryMedia
+      },
       viewer: {
         isOwner,
         isMember,
@@ -468,7 +575,8 @@ export const viewer = query({
           feed: canAccessProtected,
           classroom: canAccessProtected,
           members: canAccessProtected
-        }
+        },
+        membership: membershipInfo
       },
       memberCount:
         typeof group.memberNumber === 'number' ? group.memberNumber : 0,
@@ -523,8 +631,12 @@ export const getMembers = query({
       .withIndex('by_groupId', q => q.eq('groupId', id))
       .collect()
 
+    const activeMembers = members.filter(
+      member => (member.status ?? 'active') === 'active'
+    )
+
     const resolvedMembers = await Promise.all(
-      members.map(async member => {
+      activeMembers.map(async member => {
         const user = await ctx.db.get(member.userId)
         return user
       })
@@ -542,7 +654,21 @@ export const listAll = query({
   args: {},
   handler: async ctx => {
     const groups = await ctx.db.query('groups').collect()
-    return groups
+    const normalized = await Promise.all(
+      groups.map(async group => {
+        const [thumbnailMedia, galleryMedia] = await Promise.all([
+          resolveMediaReference(ctx, group.thumbnailUrl),
+          resolveGallery(ctx, group.galleryUrls)
+        ])
+
+        return {
+          ...group,
+          thumbnailUrl: thumbnailMedia?.url,
+          galleryUrls: galleryMedia.map(entry => entry.url)
+        } satisfies Doc<'groups'>
+      })
+    )
+    return normalized
   }
 })
 
@@ -554,11 +680,16 @@ export const directory = query({
     const results = await Promise.all(
       groups.map(async group => {
         const owner = await ctx.db.get(group.ownerId)
+        const [thumbnailMedia, galleryMedia] = await Promise.all([
+          resolveMediaReference(ctx, group.thumbnailUrl),
+          resolveGallery(ctx, group.galleryUrls)
+        ])
         return {
           group: {
             ...group,
+            thumbnailUrl: thumbnailMedia?.url,
+            galleryUrls: galleryMedia.map(entry => entry.url),
             tags: group.tags ?? [],
-            galleryUrls: group.galleryUrls ?? [],
             visibility: resolveVisibility(
               group.visibility as VisibilityOption | undefined
             ),
@@ -646,9 +777,11 @@ export const join = mutation({
   args: {
     groupId: v.id('groups'),
     memberAddress: v.string(),
-    txHash: v.optional(v.string())
+    txHash: v.optional(v.string()),
+    hasActivePass: v.optional(v.boolean()),
+    passExpiresAt: v.optional(v.number())
   },
-  handler: async (ctx, { groupId, memberAddress, txHash }) => {
+  handler: async (ctx, { groupId, memberAddress, txHash, hasActivePass, passExpiresAt }) => {
     const member = await requireUserByWallet(ctx, memberAddress)
     const group = await ctx.db.get(groupId)
 
@@ -666,17 +799,42 @@ export const join = mutation({
       .filter(q => q.eq(q.field('groupId'), groupId))
       .first()
 
+    const requiresPayment = (group.price ?? 0) > 0
+
     if (existing) {
-      return { status: 'already_member' as const }
+      const status = existing.status ?? 'active'
+      if (status !== 'left') {
+        return { status: 'already_member' as const }
+      }
+
+      if (requiresPayment && !txHash && !hasActivePass) {
+        throw new Error('Payment is required before rejoining this group.')
+      }
+
+      await ctx.db.patch(existing._id, {
+        status: 'active',
+        joinedAt: Date.now(),
+        leftAt: undefined,
+        passExpiresAt: passExpiresAt ?? existing.passExpiresAt
+      })
+
+      await ctx.db.patch(groupId, {
+        memberNumber: (group.memberNumber ?? 0) + 1
+      })
+
+      return { status: 'joined' as const }
     }
 
-    if ((group.price ?? 0) > 0 && !txHash) {
+    if (requiresPayment && !txHash && !hasActivePass) {
       throw new Error('Payment is required before joining this group.')
     }
 
     await ctx.db.insert('userGroups', {
       userId: member._id,
-      groupId
+      groupId,
+      status: 'active',
+      joinedAt: Date.now(),
+      passExpiresAt
     })
 
     await ctx.db.patch(groupId, {
@@ -684,6 +842,49 @@ export const join = mutation({
     })
 
     return { status: 'joined' as const }
+  }
+})
+
+export const leave = mutation({
+  args: {
+    groupId: v.id('groups'),
+    memberAddress: v.string(),
+    passExpiresAt: v.optional(v.number())
+  },
+  handler: async (ctx, { groupId, memberAddress, passExpiresAt }) => {
+    const member = await requireUserByWallet(ctx, memberAddress)
+    const group = await ctx.db.get(groupId)
+
+    if (!group) {
+      throw new Error('Group not found.')
+    }
+
+    if (group.ownerId === member._id) {
+      throw new Error('Owners cannot leave their group.')
+    }
+
+    const existing = await ctx.db
+      .query('userGroups')
+      .withIndex('by_userId', q => q.eq('userId', member._id))
+      .filter(q => q.eq(q.field('groupId'), groupId))
+      .first()
+
+    if (!existing || (existing.status ?? 'active') === 'left') {
+      return { status: 'not_member' as const }
+    }
+
+    await ctx.db.patch(existing._id, {
+      status: 'left',
+      leftAt: Date.now(),
+      passExpiresAt: passExpiresAt ?? existing.passExpiresAt
+    })
+
+    const currentCount = group.memberNumber ?? 0
+    await ctx.db.patch(groupId, {
+      memberNumber: currentCount > 0 ? currentCount - 1 : 0
+    })
+
+    return { status: 'left' as const }
   }
 })
 

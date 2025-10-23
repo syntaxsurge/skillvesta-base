@@ -2,13 +2,15 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
-import { useState } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useConvex } from 'convex/react'
+import Image from 'next/image'
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { useFieldArray, useForm, type FieldError } from 'react-hook-form'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { z } from 'zod'
 
-import { Plus, Trash2 } from 'lucide-react'
+import { ImageIcon, Link2, Loader2, Plus, Trash2, UploadCloud, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -22,8 +24,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/convex/_generated/api'
-import type { Doc } from '@/convex/_generated/dataModel'
+import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { isStorageReference, extractStorageId, toStorageSource } from '@/lib/media'
 import { useGroupContext } from '../context/group-context'
 
 const administratorSchema = z.object({
@@ -41,6 +45,26 @@ const administratorSchema = z.object({
     .refine(value => Number(value) <= 100, 'Share cannot exceed 100')
 })
 
+function normalizeMediaInput(value: string | undefined | null) {
+  return value?.trim() ?? ''
+}
+
+function isValidMediaReference(value: string | undefined | null) {
+  const trimmed = value?.trim()
+  if (!trimmed) return true
+
+  if (isStorageReference(trimmed)) {
+    return extractStorageId(trimmed).length > 0
+  }
+
+  try {
+    new URL(trimmed)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const settingsSchema = z
   .object({
     shortDescription: z
@@ -53,13 +77,8 @@ const settingsSchema = z
       .url('Enter a valid URL')
       .optional()
       .or(z.literal('')),
-    thumbnailUrl: z
-      .string()
-      .trim()
-      .url('Enter a valid image URL')
-      .optional()
-      .or(z.literal('')),
-    galleryUrls: z.string().optional(),
+    thumbnailUrl: z.string().optional(),
+    galleryUrls: z.array(z.string()).default([]),
     tags: z.string().optional(),
     visibility: z.enum(['public', 'private']).default('private'),
     billingCadence: z.enum(['free', 'monthly']).default('free'),
@@ -119,6 +138,24 @@ const settingsSchema = z
         })
       }
     }
+
+    if (!isValidMediaReference(data.thumbnailUrl)) {
+      ctx.addIssue({
+        path: ['thumbnailUrl'],
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid image URL or upload a file.'
+      })
+    }
+
+    data.galleryUrls?.forEach((entry, index) => {
+      if (!isValidMediaReference(entry)) {
+        ctx.addIssue({
+          path: ['galleryUrls', index],
+          code: z.ZodIssueCode.custom,
+          message: 'Provide a valid image URL or upload a file.'
+        })
+      }
+    })
   })
 
 type GroupSettingsFormProps = {
@@ -127,20 +164,46 @@ type GroupSettingsFormProps = {
 
 type GroupSettingsValues = z.infer<typeof settingsSchema>
 
+function generateGalleryId(seed?: string) {
+  if (seed) return seed
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `gallery-${Math.random().toString(36).slice(2, 10)}`
+}
+
+const MAX_GALLERY_ITEMS = 10
+
+type GalleryItem = {
+  id: string
+  url: string
+  source: string
+  storageId?: string
+}
+
 export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   const { address } = useAccount()
-  const { owner, administrators: existingAdministrators } = useGroupContext()
+  const convex = useConvex()
+  const { owner, administrators: existingAdministrators, media } = useGroupContext()
   const updateSettings = useMutation(api.groups.updateSettings)
+  const generateUploadUrl = useMutation(api.media.generateUploadUrl)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false)
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false)
   const ownerAddress = owner?.walletAddress?.toLowerCase() ?? null
+
+  const initialThumbnailSource = normalizeMediaInput(
+    media.thumbnail?.source ?? group.thumbnailUrl ?? ''
+  )
+  const initialGallerySources = media.gallery.map(item => item.source)
 
   const form = useForm<GroupSettingsValues>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       shortDescription: group.shortDescription ?? '',
       aboutUrl: group.aboutUrl ?? '',
-      thumbnailUrl: group.thumbnailUrl ?? '',
-      galleryUrls: (group.galleryUrls ?? []).join('\n'),
+      thumbnailUrl: initialThumbnailSource,
+      galleryUrls: initialGallerySources,
       tags: (group.tags ?? []).join(', '),
       visibility: group.visibility ?? 'private',
       billingCadence: group.billingCadence ?? (group.price > 0 ? 'monthly' : 'free'),
@@ -156,6 +219,319 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     name: 'administrators'
   })
 
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(
+    media.thumbnail?.url ?? (initialThumbnailSource ? initialThumbnailSource : null)
+  )
+  const [thumbnailTab, setThumbnailTab] = useState<'upload' | 'link'>(
+    isStorageReference(initialThumbnailSource) ? 'upload' : 'link'
+  )
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(
+    media.gallery.map(entry => ({
+      id: generateGalleryId(entry.storageId ?? entry.source),
+      url: entry.url,
+      source: entry.source,
+      storageId: entry.storageId
+    }))
+  )
+  const [galleryTab, setGalleryTab] = useState<'upload' | 'links'>(
+    galleryItems.some(item => isStorageReference(item.source)) ? 'upload' : 'links'
+  )
+  const [galleryLinkInput, setGalleryLinkInput] = useState('')
+  const thumbnailInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const thumbnailObjectUrlRef = useRef<string | null>(null)
+  const galleryObjectUrlsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (thumbnailObjectUrlRef.current) {
+      URL.revokeObjectURL(thumbnailObjectUrlRef.current)
+      thumbnailObjectUrlRef.current = null
+    }
+
+    if (galleryObjectUrlsRef.current.length) {
+      galleryObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+      galleryObjectUrlsRef.current = []
+    }
+
+    const nextThumbnailSource = normalizeMediaInput(
+      media.thumbnail?.source ?? group.thumbnailUrl ?? ''
+    )
+    form.setValue('thumbnailUrl', nextThumbnailSource, { shouldDirty: false })
+    setThumbnailPreview(
+      media.thumbnail?.url ?? (nextThumbnailSource ? nextThumbnailSource : null)
+    )
+    setThumbnailTab(
+      nextThumbnailSource && isStorageReference(nextThumbnailSource)
+        ? 'upload'
+        : 'link'
+    )
+
+    const nextGalleryItems = media.gallery.map(entry => ({
+      id: generateGalleryId(entry.storageId ?? entry.source),
+      url: entry.url,
+      source: entry.source,
+      storageId: entry.storageId
+    }))
+
+    setGalleryItems(nextGalleryItems)
+    form.setValue(
+      'galleryUrls',
+      nextGalleryItems.map(item => item.source),
+      { shouldDirty: false }
+    )
+    setGalleryTab(
+      nextGalleryItems.some(item => isStorageReference(item.source))
+        ? 'upload'
+        : 'links'
+    )
+  }, [
+    form,
+    group.thumbnailUrl,
+    media.gallery,
+    media.thumbnail?.source,
+    media.thumbnail?.url
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (thumbnailObjectUrlRef.current) {
+        URL.revokeObjectURL(thumbnailObjectUrlRef.current)
+      }
+      galleryObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+    }
+  }, [])
+
+  const handleThumbnailFile = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please choose an image file.')
+        event.target.value = ''
+        return
+      }
+
+      try {
+        setIsUploadingThumbnail(true)
+        const { uploadUrl } = await generateUploadUrl({})
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type },
+          body: file
+        })
+
+        if (!response.ok) {
+          throw new Error('Upload failed')
+        }
+
+        const payload = (await response.json()) as { storageId?: string }
+        if (!payload.storageId) {
+          throw new Error('Missing storage id')
+        }
+
+        const storageId = payload.storageId
+        const { url } = await convex.query(api.media.getUrl, {
+          storageId: storageId as Id<'_storage'>
+        })
+
+        if (thumbnailObjectUrlRef.current) {
+          URL.revokeObjectURL(thumbnailObjectUrlRef.current)
+          thumbnailObjectUrlRef.current = null
+        }
+
+        let resolvedUrl = url ?? null
+        if (!resolvedUrl) {
+          resolvedUrl = URL.createObjectURL(file)
+          thumbnailObjectUrlRef.current = resolvedUrl
+        }
+
+        const source = toStorageSource(storageId)
+        form.setValue('thumbnailUrl', source, {
+          shouldDirty: true,
+          shouldValidate: true
+        })
+        setThumbnailPreview(resolvedUrl)
+        setThumbnailTab('upload')
+        toast.success('Thumbnail ready to use.')
+      } catch (error) {
+        console.error('Thumbnail upload failed', error)
+        toast.error('Unable to upload thumbnail. Please try a different image.')
+      } finally {
+        setIsUploadingThumbnail(false)
+        if (event.target) {
+          event.target.value = ''
+        }
+      }
+    },
+    [convex, form, generateUploadUrl]
+  )
+
+  const handleClearThumbnail = useCallback(() => {
+    if (thumbnailObjectUrlRef.current) {
+      URL.revokeObjectURL(thumbnailObjectUrlRef.current)
+      thumbnailObjectUrlRef.current = null
+    }
+    setThumbnailPreview(null)
+    form.setValue('thumbnailUrl', '', {
+      shouldDirty: true,
+      shouldValidate: true
+    })
+  }, [form])
+
+  const handleAddGalleryLink = useCallback(() => {
+    const trimmed = normalizeMediaInput(galleryLinkInput)
+    if (!trimmed) {
+      toast.error('Enter a URL before adding it to the gallery.')
+      return
+    }
+
+    if (!isValidMediaReference(trimmed)) {
+      toast.error('Enter a valid image URL.')
+      return
+    }
+
+    if (galleryItems.length >= MAX_GALLERY_ITEMS) {
+      toast.error(`You can add up to ${MAX_GALLERY_ITEMS} gallery assets.`)
+      return
+    }
+
+    setGalleryItems(prev => {
+      if (prev.some(item => item.source === trimmed)) {
+        toast.error('This asset is already in your gallery.')
+        return prev
+      }
+      const next = [
+        ...prev,
+        {
+          id: generateGalleryId(trimmed),
+          url: trimmed,
+          source: trimmed
+        }
+      ]
+      form.setValue(
+        'galleryUrls',
+        next.map(item => item.source),
+        { shouldDirty: true, shouldValidate: true }
+      )
+      return next
+    })
+    setGalleryLinkInput('')
+    setGalleryTab('links')
+  }, [form, galleryItems.length, galleryLinkInput])
+
+  const handleRemoveGalleryItem = useCallback(
+    (id: string) => {
+      setGalleryItems(prev => {
+        const target = prev.find(item => item.id === id)
+        if (target) {
+          const index = galleryObjectUrlsRef.current.indexOf(target.url)
+          if (index >= 0) {
+            URL.revokeObjectURL(galleryObjectUrlsRef.current[index])
+            galleryObjectUrlsRef.current.splice(index, 1)
+          }
+        }
+
+        const next = prev.filter(item => item.id !== id)
+        form.setValue(
+          'galleryUrls',
+          next.map(item => item.source),
+          { shouldDirty: true, shouldValidate: true }
+        )
+        return next
+      })
+    },
+    [form]
+  )
+
+  const handleGalleryUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files ?? [])
+      if (!files.length) return
+
+      const remainingSlots = MAX_GALLERY_ITEMS - galleryItems.length
+      if (remainingSlots <= 0) {
+        toast.error(`You can add up to ${MAX_GALLERY_ITEMS} gallery assets.`)
+        event.target.value = ''
+        return
+      }
+
+      const toUpload = files.slice(0, remainingSlots)
+      const uploaded: GalleryItem[] = []
+
+      try {
+        setIsUploadingGallery(true)
+        for (const file of toUpload) {
+          if (!file.type.startsWith('image/')) {
+            toast.error(`${file.name} is not an image file.`)
+            continue
+          }
+
+          const { uploadUrl } = await generateUploadUrl({})
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': file.type },
+            body: file
+          })
+
+          if (!response.ok) {
+            toast.error(`Failed to upload ${file.name}.`)
+            continue
+          }
+
+          const payload = (await response.json()) as { storageId?: string }
+          if (!payload.storageId) {
+            toast.error(`Upload failed for ${file.name}.`)
+            continue
+          }
+
+          const storageId = payload.storageId
+          const { url } = await convex.query(api.media.getUrl, {
+            storageId: storageId as Id<'_storage'>
+          })
+
+          let resolvedUrl = url ?? null
+          if (!resolvedUrl) {
+            resolvedUrl = URL.createObjectURL(file)
+            galleryObjectUrlsRef.current.push(resolvedUrl)
+          }
+
+          uploaded.push({
+            id: generateGalleryId(storageId),
+            url: resolvedUrl,
+            source: toStorageSource(storageId),
+            storageId
+          })
+        }
+      } catch (error) {
+        console.error('Gallery upload failed', error)
+        toast.error('Unable to upload gallery assets right now.')
+      } finally {
+        setIsUploadingGallery(false)
+        if (event.target) {
+          event.target.value = ''
+        }
+      }
+
+      if (!uploaded.length) {
+        return
+      }
+
+      setGalleryItems(prev => {
+        const next = [...prev, ...uploaded]
+        form.setValue(
+          'galleryUrls',
+          next.map(item => item.source),
+          { shouldDirty: true, shouldValidate: true }
+        )
+        return next
+      })
+      setGalleryTab('upload')
+      toast.success('Gallery assets added.')
+    },
+    [convex, form, galleryItems.length, generateUploadUrl]
+  )
+
   const administratorsValues = form.watch('administrators') ?? []
   const totalAdminShare = administratorsValues.reduce((total, admin) => {
     const share = Number(admin?.share)
@@ -165,6 +541,13 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     return total + share
   }, 0)
   const ownerShare = Math.max(0, Number((100 - totalAdminShare).toFixed(2)))
+  const galleryFieldErrors = form.formState.errors.galleryUrls
+  const galleryErrorMessage = Array.isArray(galleryFieldErrors)
+    ? galleryFieldErrors.find(
+        (error): error is FieldError => Boolean(error?.message)
+      )?.message
+    : galleryFieldErrors?.message
+  const remainingGallerySlots = MAX_GALLERY_ITEMS - galleryItems.length
 
   const onSubmit = async (values: GroupSettingsValues) => {
     if (!address) {
@@ -204,9 +587,10 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
 
       const parsedPrice = Number.isFinite(priceRaw) ? Math.max(0, priceRaw) : 0
 
-      const gallery = values.galleryUrls
-        ?.split('\n')
-        .map(url => url.trim())
+      const thumbnailSource = normalizeMediaInput(values.thumbnailUrl)
+
+      const gallery = (values.galleryUrls ?? [])
+        .map(url => normalizeMediaInput(url))
         .filter(Boolean)
 
       const tags = values.tags
@@ -257,7 +641,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         ownerAddress: address,
         shortDescription: values.shortDescription?.trim(),
         aboutUrl: values.aboutUrl?.trim() || undefined,
-        thumbnailUrl: values.thumbnailUrl?.trim() || undefined,
+        thumbnailUrl: thumbnailSource || undefined,
         galleryUrls: gallery,
         tags,
         visibility: values.visibility,
@@ -481,10 +865,99 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
           name='thumbnailUrl'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Thumbnail image URL</FormLabel>
-              <FormControl>
-                <Input placeholder='https://...' {...field} />
-              </FormControl>
+              <FormLabel>Thumbnail image</FormLabel>
+              <Tabs
+                value={thumbnailTab}
+                onValueChange={value => setThumbnailTab(value as 'upload' | 'link')}
+                className='space-y-3'
+              >
+                <TabsList className='grid w-full grid-cols-2'>
+                  <TabsTrigger value='upload' className='flex items-center gap-2'>
+                    <UploadCloud className='h-4 w-4' />
+                    Upload
+                  </TabsTrigger>
+                  <TabsTrigger value='link' className='flex items-center gap-2'>
+                    <Link2 className='h-4 w-4' />
+                    Link
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='upload'>
+                  <div className='space-y-3'>
+                    <div className='relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-dashed border-border bg-muted'>
+                      {thumbnailPreview ? (
+                        <Image
+                          src={thumbnailPreview}
+                          alt='Group thumbnail preview'
+                          fill
+                          className='object-cover'
+                          sizes='360px'
+                        />
+                      ) : (
+                        <div className='flex h-full w-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground'>
+                          <ImageIcon className='h-6 w-6' />
+                          <span>Upload an image to represent your group.</span>
+                        </div>
+                      )}
+                      {isUploadingThumbnail && (
+                        <div className='absolute inset-0 flex items-center justify-center bg-background/70'>
+                          <Loader2 className='h-6 w-6 animate-spin text-foreground' />
+                        </div>
+                      )}
+                    </div>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => thumbnailInputRef.current?.click()}
+                        disabled={isUploadingThumbnail}
+                      >
+                        <UploadCloud className='mr-2 h-4 w-4' />
+                        Upload image
+                      </Button>
+                      {thumbnailPreview && (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={handleClearThumbnail}
+                          disabled={isUploadingThumbnail}
+                        >
+                          <X className='mr-2 h-4 w-4' />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value='link'>
+                  <FormControl>
+                    <Input
+                      ref={field.ref}
+                      name={field.name}
+                      placeholder='https://example.com/thumbnail.jpg'
+                      value={isStorageReference(field.value) ? '' : field.value ?? ''}
+                      onBlur={field.onBlur}
+                      onChange={event => {
+                        const nextValue = event.target.value
+                        field.onChange(nextValue)
+                        const normalized = normalizeMediaInput(nextValue)
+                        setThumbnailPreview(normalized || null)
+                      }}
+                    />
+                  </FormControl>
+                  <p className='mt-2 text-xs text-muted-foreground'>
+                    Paste a direct image URL. JPG, PNG, or GIF files work best.
+                  </p>
+                </TabsContent>
+              </Tabs>
+              <input
+                ref={thumbnailInputRef}
+                type='file'
+                accept='image/*'
+                className='hidden'
+                onChange={handleThumbnailFile}
+              />
               <FormMessage />
             </FormItem>
           )}
@@ -510,17 +983,132 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         <FormField
           control={form.control}
           name='galleryUrls'
-          render={({ field }) => (
+          render={() => (
             <FormItem>
-              <FormLabel>Gallery assets</FormLabel>
-              <FormControl>
-                <Textarea
-                  rows={3}
-                  placeholder='Add one URL per line to feature additional media.'
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
+              <FormLabel className='flex items-center justify-between text-sm font-medium'>
+                Gallery assets
+                <span className='text-xs font-normal text-muted-foreground'>
+                  {galleryItems.length}/{MAX_GALLERY_ITEMS}
+                </span>
+              </FormLabel>
+              <Tabs
+                value={galleryTab}
+                onValueChange={value => setGalleryTab(value as 'upload' | 'links')}
+                className='space-y-3'
+              >
+                <TabsList className='grid w-full grid-cols-2'>
+                  <TabsTrigger value='upload' className='flex items-center gap-2'>
+                    <UploadCloud className='h-4 w-4' />
+                    Upload
+                  </TabsTrigger>
+                  <TabsTrigger value='links' className='flex items-center gap-2'>
+                    <Link2 className='h-4 w-4' />
+                    Links
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='upload'>
+                  <div className='space-y-3'>
+                    <div className='rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center'>
+                      <p className='text-sm text-muted-foreground'>
+                        {remainingGallerySlots > 0
+                          ? `Drag & drop up to ${remainingGallerySlots} more image${remainingGallerySlots === 1 ? '' : 's'}, or use the button below.`
+                          : 'Gallery is full. Remove an asset to add another.'}
+                      </p>
+                      <div className='mt-4 flex flex-wrap items-center justify-center gap-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => galleryInputRef.current?.click()}
+                          disabled={isUploadingGallery || remainingGallerySlots <= 0}
+                        >
+                          <UploadCloud className='mr-2 h-4 w-4' />
+                          Choose files
+                        </Button>
+                        {isUploadingGallery && (
+                          <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
+                        )}
+                      </div>
+                      <p className='mt-3 text-xs text-muted-foreground'>PNG, JPG, and GIF files are supported.</p>
+                    </div>
+                    <input
+                      ref={galleryInputRef}
+                      type='file'
+                      accept='image/*'
+                      multiple
+                      className='hidden'
+                      onChange={handleGalleryUpload}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value='links'>
+                  <div className='space-y-3'>
+                    <div className='flex flex-col gap-2 sm:flex-row'>
+                      <Input
+                        placeholder='https://example.com/gallery-image.png'
+                        value={galleryLinkInput}
+                        onChange={event => setGalleryLinkInput(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            handleAddGalleryLink()
+                          }
+                        }}
+                      />
+                      <Button
+                        type='button'
+                        onClick={handleAddGalleryLink}
+                        disabled={!galleryLinkInput.trim()}
+                      >
+                        Add link
+                      </Button>
+                    </div>
+                    <p className='text-xs text-muted-foreground'>
+                      Paste direct image URLs to feature additional media.
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              {galleryItems.length > 0 ? (
+                <div className='mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                  {galleryItems.map(item => (
+                    <div
+                      key={item.id}
+                      className='group relative overflow-hidden rounded-lg border border-border'
+                    >
+                      <div className='relative aspect-[4/3] w-full bg-muted'>
+                        <Image
+                          src={item.url}
+                          alt='Gallery asset preview'
+                          fill
+                          className='object-cover'
+                          sizes='250px'
+                        />
+                      </div>
+                      <div className='absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-black/60 via-black/40 to-transparent p-2 opacity-0 transition group-hover:opacity-100'>
+                        <Button
+                          type='button'
+                          variant='secondary'
+                          size='sm'
+                          onClick={() => handleRemoveGalleryItem(item.id)}
+                        >
+                          <Trash2 className='mr-1.5 h-3.5 w-3.5' />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className='mt-4 rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground'>
+                  No gallery assets yet. Upload files or paste links to showcase more visuals.
+                </div>
+              )}
+
+              {galleryErrorMessage && (
+                <p className='mt-2 text-sm text-destructive'>{galleryErrorMessage}</p>
+              )}
             </FormItem>
           )}
         />

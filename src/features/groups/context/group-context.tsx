@@ -32,6 +32,24 @@ type GroupContextValue = {
     members: boolean
   }
   currentUser: Doc<'users'> | null
+  media: {
+    thumbnail: {
+      url: string | null
+      storageId?: string
+      source: string | null
+    } | null
+    gallery: Array<{
+      url: string
+      storageId?: string
+      source: string
+    }>
+  }
+  membership: {
+    status: 'active' | 'left' | null
+    passExpiresAt?: number
+    leftAt?: number
+    joinedAt?: number
+  }
 }
 
 const GroupContext = createContext<GroupContextValue | undefined>(undefined)
@@ -110,7 +128,39 @@ export function GroupProvider({
         isOwner: viewerState.viewer.isOwner,
         isMember: viewerState.viewer.isMember,
         access: viewerState.viewer.canAccess,
-        administrators: viewerState.administrators ?? []
+        administrators: viewerState.administrators ?? [],
+        media: {
+          thumbnail: viewerState.media?.thumbnail
+            ? {
+                url: viewerState.media.thumbnail.url,
+                storageId: viewerState.media.thumbnail.storageId,
+                source: viewerState.media.thumbnail.source
+              }
+            : viewerState.group.thumbnailUrl
+              ? {
+                  url: viewerState.group.thumbnailUrl,
+                  source: viewerState.group.thumbnailUrl
+                }
+              : null,
+          gallery:
+            viewerState.media?.gallery?.map(entry => ({
+              url: entry.url,
+              storageId: entry.storageId,
+              source: entry.source
+            })) ??
+            (viewerState.group.galleryUrls ?? []).map(url => ({
+              url,
+              source: url
+            }))
+        },
+        membership: {
+          status:
+            viewerState.viewer.membership?.status ??
+            (viewerState.viewer.isMember ? 'active' : null),
+          passExpiresAt: viewerState.viewer.membership?.passExpiresAt,
+          leftAt: viewerState.viewer.membership?.leftAt,
+          joinedAt: viewerState.viewer.membership?.joinedAt
+        }
       }
     }
   }, [currentUser, viewerState])

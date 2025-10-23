@@ -4,22 +4,63 @@ import { useMemo, useState } from 'react'
 
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
-import { erc20Abi, maxUint256, parseUnits } from 'viem'
+import { Address, erc20Abi, maxUint256, parseUnits } from 'viem'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
+import type { Doc } from '@/convex/_generated/dataModel'
 import {
+  MEMBERSHIP_CONTRACT_ADDRESS,
   REVENUE_SPLIT_ROUTER_ADDRESS,
   USDC_CONTRACT_ADDRESS
 } from '@/lib/config'
 import { revenueSplitRouterAbi } from '@/lib/onchain/abi'
+import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { useGroupContext } from '../context/group-context'
 import { formatGroupPriceLabel } from '../utils/price'
 
+function resolveMembershipCourseId(group: Doc<'groups'>): bigint | null {
+  const subscriptionId = group.subscriptionId
+  if (subscriptionId) {
+    const numeric = Number(subscriptionId)
+    if (!Number.isNaN(numeric) && numeric > 0) {
+      try {
+        return BigInt(numeric)
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }
+
+  const tags = group.tags ?? []
+  for (const tag of tags) {
+    const normalized = tag.trim().toLowerCase()
+    const match = normalized.match(/^(?:course|pass|membership):([0-9]+)$/)
+    if (match) {
+      try {
+        return BigInt(match[1])
+      } catch {
+        continue
+      }
+    }
+  }
+
+  return null
+}
+
+function normalizePassExpiry(expiresAt: bigint | null | undefined) {
+  if (!expiresAt) return undefined
+  const numeric = Number(expiresAt)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return undefined
+  }
+  return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+}
+
 export function JoinGroupButton() {
-  const { group, owner, isOwner, isMember, administrators } = useGroupContext()
+  const { group, owner, isOwner, isMember, administrators, membership } = useGroupContext()
   const { address } = useAccount()
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
@@ -28,6 +69,15 @@ export function JoinGroupButton() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const usdcAddress = USDC_CONTRACT_ADDRESS as `0x${string}` | null
   const routerAddress = REVENUE_SPLIT_ROUTER_ADDRESS as `0x${string}` | ''
+  const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | null
+  const membershipService = useMemo(() => {
+    if (!publicClient || !membershipAddress) return null
+    return new MembershipPassService({
+      publicClient: publicClient as any,
+      address: membershipAddress
+    })
+  }, [publicClient, membershipAddress])
+  const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
 
   const revenueSplits = useMemo(() => {
     if (!owner?.walletAddress) {
@@ -101,13 +151,16 @@ export function JoinGroupButton() {
     }
 
     const price = group.price ?? 0
+    const requiresPayment = price > 0
     let txHash: `0x${string}` | undefined
+    let skipPayment = false
+    let passExpiryMs: number | undefined
 
-    if (price > 0 && !usdcAddress) {
+    if (requiresPayment && !usdcAddress) {
       toast.error('USDC contract address not configured.')
       return
     }
-    if (price > 0 && !routerAddress) {
+    if (requiresPayment && !routerAddress) {
       toast.error('Revenue split router contract not configured.')
       return
     }
@@ -115,7 +168,29 @@ export function JoinGroupButton() {
     try {
       setIsSubmitting(true)
 
-      if (price > 0) {
+      if (requiresPayment && membershipService && membershipCourseId && address) {
+        try {
+          const [active, state] = await Promise.all([
+            membershipService.isPassActive(membershipCourseId, address as Address),
+            membershipService.getPassState(membershipCourseId, address as Address)
+          ])
+
+          if (active) {
+            skipPayment = true
+            passExpiryMs = normalizePassExpiry(state.expiresAt)
+            toast.info('Membership pass detected. Rejoining without payment.')
+          }
+        } catch (error) {
+          console.error('Failed to verify membership pass', error)
+        }
+      }
+
+      if (requiresPayment && !skipPayment && membership?.passExpiresAt && membership.passExpiresAt > Date.now()) {
+        skipPayment = true
+        passExpiryMs = membership.passExpiresAt
+      }
+
+      if (requiresPayment && !skipPayment) {
         if (
           !revenueSplits ||
           revenueSplits.recipients.length === 0 ||
@@ -176,7 +251,9 @@ export function JoinGroupButton() {
       await joinGroup({
         groupId: group._id,
         memberAddress: address,
-        txHash
+        txHash,
+        hasActivePass: skipPayment,
+        passExpiresAt: passExpiryMs
       })
 
       toast.success('Welcome aboard! You now have access to this group.')
@@ -202,6 +279,70 @@ export function JoinGroupButton() {
       onClick={handleJoin}
     >
       {isSubmitting ? 'Processing...' : buttonLabel}
+    </Button>
+  )
+}
+
+type LeaveGroupButtonProps = {
+  membershipService: MembershipPassService | null
+  courseId: bigint | null
+}
+
+function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps) {
+  const { group, membership } = useGroupContext()
+  const { address } = useAccount()
+  const leaveGroup = useMutation(api.groups.leave)
+  const [isLeaving, setIsLeaving] = useState(false)
+
+  const handleLeave = async () => {
+    if (!address) {
+      toast.error('Connect your wallet to manage memberships.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      'Leave this group? You can rejoin later if your membership pass is still active.'
+    )
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setIsLeaving(true)
+      let passExpiryMs = membership?.passExpiresAt
+
+      if (membershipService && courseId && group.price > 0) {
+        try {
+          const state = await membershipService.getPassState(courseId, address as Address)
+          passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
+        } catch (error) {
+          console.error('Failed to resolve pass state before leaving', error)
+        }
+      }
+
+      await leaveGroup({
+        groupId: group._id,
+        memberAddress: address,
+        passExpiresAt: passExpiryMs
+      })
+
+      toast.success('You have left this group.')
+    } catch (error) {
+      console.error('Failed to leave group', error)
+      toast.error('Unable to leave the group right now.')
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
+  return (
+    <Button
+      className='w-full'
+      variant='destructive'
+      onClick={handleLeave}
+      disabled={isLeaving}
+    >
+      {isLeaving ? 'Leaving...' : 'Leave group'}
     </Button>
   )
 }

@@ -41,7 +41,11 @@ export default defineSchema({
     .index('by_adminId', ['adminId']),
   userGroups: defineTable({
     userId: v.id('users'),
-    groupId: v.id('groups')
+    groupId: v.id('groups'),
+    status: v.optional(v.union(v.literal('active'), v.literal('left'))),
+    joinedAt: v.optional(v.number()),
+    leftAt: v.optional(v.number()),
+    passExpiresAt: v.optional(v.number())
   })
     .index('by_userId', ['userId'])
     .index('by_groupId', ['groupId']),

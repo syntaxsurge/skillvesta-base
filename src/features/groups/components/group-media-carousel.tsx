@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 
 import { PlayCircle } from 'lucide-react'
 
+import { normalizeYouTubeEmbedUrl } from '@/lib/media'
 import { cn } from '@/lib/utils'
 
 type MediaKind = 'image' | 'video' | 'youtube'
@@ -49,7 +50,7 @@ function detectMediaKind(url: string): MediaItem | null {
       url,
       kind: 'youtube',
       thumbnail: `https://img.youtube.com/vi/${id}/0.jpg`,
-      embedUrl: `https://www.youtube.com/embed/${id}?rel=0`
+      embedUrl: normalizeYouTubeEmbedUrl(url) ?? `https://www.youtube.com/embed/${id}?rel=0`
     }
   }
 
@@ -90,8 +91,9 @@ export function GroupMediaCarousel({
 
   if (!active) {
     return (
-      <div className='flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-border bg-muted text-sm text-muted-foreground'>
-        Add a video or gallery URL to showcase this group.
+      <div className='flex aspect-video w-full flex-col items-center justify-center rounded-xl border border-border bg-muted/60 text-sm text-muted-foreground'>
+        <PlayCircle className='mb-2 h-6 w-6 text-muted-foreground' />
+        Media preview not available for this group yet.
       </div>
     )
   }

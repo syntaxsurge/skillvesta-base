@@ -13,6 +13,7 @@ import type * as courses from "../courses.js";
 import type * as groups from "../groups.js";
 import type * as lessons from "../lessons.js";
 import type * as likes from "../likes.js";
+import type * as media from "../media.js";
 import type * as modules from "../modules.js";
 import type * as posts from "../posts.js";
 import type * as users from "../users.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   groups: typeof groups;
   lessons: typeof lessons;
   likes: typeof likes;
+  media: typeof media;
   modules: typeof modules;
   posts: typeof posts;
   users: typeof users;
