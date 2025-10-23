@@ -5,6 +5,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 
 import { AppProviders } from '@/providers/app-providers'
+import { AppNavbar } from '@/components/layout/app-navbar'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,8 +23,11 @@ export default function RootLayout({
     <html lang='en'>
       <body className={inter.className}>
         <AppProviders>
+          <div className='flex min-h-screen flex-col'>
+            <AppNavbar />
+            <main className='flex-1'>{children}</main>
+          </div>
           <Toaster />
-          {children}
         </AppProviders>
       </body>
     </html>
