@@ -58,7 +58,8 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/demo-video',
-        destination: 'https://www.youtube.com/watch?v=K4TOrB7at0Y',
+        destination:
+          'https://cdn.shortyearn.com/syntaxsurge.com/wp-content/uploads/2025/05/Demo%20Backg-3dv106.mp4',
         permanent: false
       }
     ]
