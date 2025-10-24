@@ -73,6 +73,29 @@ type Filters = {
   onlyListings: boolean
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    const { name, message, stack } = error
+    const cause = (error as { cause?: unknown }).cause
+    return {
+      name,
+      message,
+      stack,
+      cause: typeof cause === 'string' ? cause : undefined
+    }
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      return JSON.parse(JSON.stringify(error))
+    } catch {
+      return { description: Object.prototype.toString.call(error) }
+    }
+  }
+
+  return { value: String(error) }
+}
+
 const defaultFilters: Filters = {
   search: '',
   expiry: 'any',
@@ -234,9 +257,9 @@ export function MarketplaceShell() {
               user: userState
             } as MarketplaceCourse
           } catch (error) {
-            console.error('[Marketplace] Failed to hydrate course state', {
+            console.warn('[Marketplace] Failed to hydrate course state', {
               courseId: courseId.toString(),
-              error
+              error: serializeError(error)
             })
             return null
           }
