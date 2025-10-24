@@ -191,49 +191,59 @@ export function MarketplaceShell() {
     queryFn: async (): Promise<MarketplaceCourse[]> => {
       if (!readOnlyMarketplace || !readOnlyMembership) return []
 
-      return Promise.all(
+      const results: Array<MarketplaceCourse | null> = await Promise.all(
         dynamicCatalog.map(async catalogItem => {
           const courseId = catalogItem.courseId
-          const [courseConfig, listings] = await Promise.all([
-            readOnlyMembership.getCourse(courseId),
-            readOnlyMarketplace.getActiveListings(courseId)
-          ])
-
-          let userState: MarketplaceCourse['user']
-          if (address) {
-            const [hasPass, transferInfo, passState] = await Promise.all([
-              readOnlyMembership.isPassActive(courseId, address as Address),
-              readOnlyMembership.canTransfer(courseId, address as Address),
-              readOnlyMembership.getPassState(courseId, address as Address)
+          try {
+            const [courseConfig, listings] = await Promise.all([
+              readOnlyMembership.getCourse(courseId),
+              readOnlyMarketplace.getActiveListings(courseId)
             ])
 
-            userState = {
-              hasPass,
-              canTransfer: transferInfo.eligible,
-              transferAvailableAt: transferInfo.availableAt,
-              expiresAt: passState.expiresAt
+            let userState: MarketplaceCourse['user']
+            if (address) {
+              const [balance, transferInfo, passState] = await Promise.all([
+                readOnlyMembership.balanceOf(address as Address, courseId),
+                readOnlyMembership.canTransfer(courseId, address as Address),
+                readOnlyMembership.getPassState(courseId, address as Address)
+              ])
+
+              userState = {
+                hasPass: balance > 0n,
+                canTransfer: transferInfo.eligible,
+                transferAvailableAt: transferInfo.availableAt,
+                expiresAt: passState.expiresAt
+              }
             }
-          }
 
-          const floor = listings.reduce<bigint | null>((lowest, listing) => {
-            if (!lowest || listing.priceUSDC < lowest) return listing.priceUSDC
-            return lowest
-          }, null)
+            const floor = listings.reduce<bigint | null>((lowest, listing) => {
+              if (!lowest || listing.priceUSDC < lowest) return listing.priceUSDC
+              return lowest
+            }, null)
 
-          return {
-            catalog: catalogItem,
-            floorPrice: floor,
-            listings,
-            stats: {
-              listingCount: listings.length,
-              primaryPrice: courseConfig.priceUSDC,
-              duration: courseConfig.duration,
-              cooldown: courseConfig.transferCooldown
-            },
-            user: userState
+            return {
+              catalog: catalogItem,
+              floorPrice: floor,
+              listings,
+              stats: {
+                listingCount: listings.length,
+                primaryPrice: courseConfig.priceUSDC,
+                duration: courseConfig.duration,
+                cooldown: courseConfig.transferCooldown
+              },
+              user: userState
+            } as MarketplaceCourse
+          } catch (error) {
+            console.error('[Marketplace] Failed to hydrate course state', {
+              courseId: courseId.toString(),
+              error
+            })
+            return null
           }
         })
       )
+
+      return results.filter((entry): entry is MarketplaceCourse => entry !== null)
     }
   })
 
@@ -285,6 +295,20 @@ export function MarketplaceShell() {
       a.catalog.title.localeCompare(b.catalog.title)
     )
   }, [data])
+
+  useEffect(() => {
+    const ownedIds = ownedCourses.map(course => course.catalog.courseId.toString())
+    const groups = (myGroups ?? []).map(group => ({
+      id: group?._id,
+      subscriptionId: group?.subscriptionId
+    }))
+    console.log('[Marketplace] Snapshot', {
+      wallet: address ?? 'disconnected',
+      hydratedCourses: data?.length ?? 0,
+      ownedCourseIds: ownedIds,
+      myGroupSubscriptions: groups
+    })
+  }, [address, data, myGroups, ownedCourses])
   const preferredCourse = useMemo(
     () =>
       ownedCourses.find(course => course.user?.canTransfer) ?? ownedCourses[0],
