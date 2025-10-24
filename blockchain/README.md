@@ -57,9 +57,9 @@ Helper contracts that are instantiated per course live under `contracts/helpers/
 ```bash
 npx hardhat compile
 npx hardhat run scripts/deployMembershipPass.ts --network baseSepolia
-npx hardhat run scripts/deployBadge1155.ts --network baseSepolia
 npx hardhat run scripts/deployRegistrar.ts --network baseSepolia
 npx hardhat run scripts/deployMarketplace.ts --network baseSepolia
+npx hardhat run scripts/deployBadge1155.ts --network baseSepolia
 npx hardhat run scripts/deployRevenueSplitRouter.ts --network baseSepolia
 ```
 
