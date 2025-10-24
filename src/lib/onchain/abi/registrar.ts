@@ -16,5 +16,19 @@ export const registrarAbi = [
     ],
     stateMutability: 'nonpayable',
     type: 'function'
+  },
+  {
+    inputs: [],
+    name: 'marketplace',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'marketplaceAddress', type: 'address' }],
+    name: 'setMarketplace',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
   }
 ] as const satisfies Abi
