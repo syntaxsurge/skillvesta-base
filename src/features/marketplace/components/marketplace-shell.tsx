@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { useQuery } from '@tanstack/react-query'
+import { useQuery as useConvexQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { parseUnits, type Address } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
@@ -23,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { getCourseCatalog, type CourseCatalogItem } from '@/lib/catalog/courses'
+import { api } from '@/convex/_generated/api'
 import {
   MARKETPLACE_CONTRACT_ADDRESS,
   MEMBERSHIP_CONTRACT_ADDRESS,
@@ -100,6 +102,41 @@ function shortenAddress(address: string) {
 
 export function MarketplaceShell() {
   const catalog = useMemo(() => getCourseCatalog(), [])
+  const { address } = useAccount()
+  // Fetch groups owned by or associated with the current wallet to discover dynamic courseIds
+  const myGroups = useConvexQuery(
+    api.groups.list,
+    address ? { address } : { address: undefined }
+  ) as any[] | undefined
+
+  // Extend catalog with dynamic entries sourced from groups (subscriptionId)
+  const dynamicCatalog = useMemo<CourseCatalogItem[]>(() => {
+    const extras: CourseCatalogItem[] = []
+    const seen = new Set<string>(catalog.map(c => c.courseId.toString()))
+    ;(myGroups ?? []).forEach(group => {
+      const subId = group?.subscriptionId
+      if (!subId) return
+      try {
+        const courseId = BigInt(String(subId))
+        const key = courseId.toString()
+        if (seen.has(key)) return
+        seen.add(key)
+        extras.push({
+          courseId,
+          title: group.name ?? `Membership #${key}`,
+          subtitle: group.shortDescription ?? 'Community membership',
+          category: 'Community',
+          difficulty: 'Beginner',
+          coverGradient: 'from-slate-500 via-slate-600 to-slate-700',
+          tags: Array.isArray(group.tags) ? group.tags : [],
+          summary:
+            group.shortDescription ??
+            'Membership minted via Registrar; duration & cooldown pulled from chain.'
+        })
+      } catch {}
+    })
+    return [...catalog, ...extras]
+  }, [catalog, myGroups])
 
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [listDialog, setListDialog] = useState<{ open: boolean; course?: MarketplaceCourse }>(
@@ -108,7 +145,6 @@ export function MarketplaceShell() {
 
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const { data: walletClient } = useWalletClient()
-  const { address } = useAccount()
 
   const marketplaceAddress = MARKETPLACE_CONTRACT_ADDRESS as Address | undefined
   const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as Address | undefined
@@ -150,13 +186,13 @@ export function MarketplaceShell() {
   }, [publicClient, walletClient, membershipAddress, address])
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['marketplace-feed', marketplaceAddress, membershipAddress, address],
+    queryKey: ['marketplace-feed', marketplaceAddress, membershipAddress, address, dynamicCatalog.map(c=>c.courseId.toString()).join(',')],
     enabled: Boolean(readOnlyMarketplace && readOnlyMembership),
     queryFn: async (): Promise<MarketplaceCourse[]> => {
       if (!readOnlyMarketplace || !readOnlyMembership) return []
 
       return Promise.all(
-        catalog.map(async catalogItem => {
+        dynamicCatalog.map(async catalogItem => {
           const courseId = catalogItem.courseId
           const [courseConfig, listings] = await Promise.all([
             readOnlyMembership.getCourse(courseId),

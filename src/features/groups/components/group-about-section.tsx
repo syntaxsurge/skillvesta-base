@@ -23,7 +23,7 @@ import { useGroupContext } from '../context/group-context'
 import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/membership'
 import { formatGroupPriceLabel } from '../utils/price'
 import { formatTimestampRelative } from '@/lib/time'
-import { MEMBERSHIP_CONTRACT_ADDRESS } from '@/lib/config'
+import { MEMBERSHIP_CONTRACT_ADDRESS, BASE_CHAIN_ID } from '@/lib/config'
 import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
@@ -205,6 +205,11 @@ export function GroupAboutSection() {
 
     return `${absolute} (${relative})`
   }, [membership.status, passExpiryMs])
+
+  const basescanBase = BASE_CHAIN_ID === 8453 ? 'https://basescan.org' : 'https://sepolia.basescan.org'
+  const tokenLink = membershipAddress && membershipCourseId
+    ? `${basescanBase}/token/${membershipAddress}?a=${membershipCourseId.toString()}`
+    : null
   const membershipCourseIdLabel = membershipCourseId ? membershipCourseId.toString() : 'Not assigned'
   const explorerName = ACTIVE_CHAIN.blockExplorers?.default.name ?? 'block explorer'
   const explorerUrl = useMemo(() => {
@@ -300,6 +305,16 @@ export function GroupAboutSection() {
               <span className='inline-flex items-center gap-2'>
                 <Calendar className='h-4 w-4' />
                 Pass expires {membershipExpiryLabel}
+                {tokenLink && (
+                  <a
+                    href={tokenLink}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='ml-2 underline hover:no-underline'
+                  >
+                    View on Basescan
+                  </a>
+                )}
               </span>
             )}
           </div>
