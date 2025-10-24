@@ -109,6 +109,10 @@ export function JoinGroupButton() {
       if (requiresPayment && membershipService && candidateCourseId && address) {
         const courseIdStrict = candidateCourseId
         try {
+          console.log('[JoinGroup] Checking existing pass before payment', {
+            courseId: courseIdStrict.toString(),
+            address
+          })
           const [active, state] = await Promise.all([
             membershipService.isPassActive(courseIdStrict, address as Address),
             membershipService.getPassState(courseIdStrict, address as Address)
@@ -167,6 +171,10 @@ export function JoinGroupButton() {
           await publicClient.waitForTransactionReceipt({ hash: approvalHash })
         }
 
+        console.log('[JoinGroup] Executing purchasePrimary', {
+          courseId: courseIdStrict.toString(),
+          price: amount.toString()
+        })
         const hash = await writeContractAsync({
           address: marketplaceAddressStrict,
           abi: membershipMarketplaceAbi,
@@ -178,9 +186,18 @@ export function JoinGroupButton() {
         await publicClient.waitForTransactionReceipt({ hash })
 
         try {
+          console.log('[JoinGroup] Verifying pass state after mint', {
+            courseId: courseIdStrict.toString(),
+            address
+          })
           const state = await membershipService!.getPassState(courseIdStrict, address as Address)
           passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
           const hasPassNow = await membershipService!.isPassActive(courseIdStrict, address as Address)
+          console.log('[JoinGroup] Pass verification result', {
+            hasPassNow,
+            expiresAt: state.expiresAt.toString(),
+            cooldownEndsAt: state.cooldownEndsAt.toString()
+          })
           if (!hasPassNow) {
             throw new Error('Membership pass not detected after purchase.')
           }

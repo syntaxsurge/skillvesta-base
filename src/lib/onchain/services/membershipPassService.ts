@@ -12,9 +12,28 @@ export type CourseData = {
   transferCooldown: bigint
 }
 
-type ReadCourseResult = [bigint, Address, Address, bigint, bigint]
+type ReadCourseTuple = [bigint, Address, Address, bigint, bigint]
 type PassStateTuple = [bigint, bigint]
 type TransferCheckTuple = [boolean, bigint, bigint]
+
+type ReadCourseStruct = {
+  priceUSDC: bigint
+  splitter: Address
+  creator: Address
+  duration: bigint
+  transferCooldown: bigint
+}
+
+type PassStateStruct = {
+  expiresAt: bigint
+  cooldownEndsAt: bigint
+}
+
+type TransferCheckStruct = {
+  eligible: boolean
+  availableAt: bigint
+  expiresAt: bigint
+}
 
 export class MembershipPassService extends OnchainService {
   readonly address: Address
@@ -34,33 +53,53 @@ export class MembershipPassService extends OnchainService {
   }
 
   async getCourse(courseId: bigint): Promise<CourseData> {
-    const [priceUSDC, splitter, creator, duration, transferCooldown] =
-      (await this.publicClient.readContract({
-        abi: membershipPass1155Abi,
-        address: this.address,
-        functionName: 'getCourse',
-        args: [courseId]
-      })) as unknown as ReadCourseResult
+    const result = (await this.publicClient.readContract({
+      abi: membershipPass1155Abi,
+      address: this.address,
+      functionName: 'getCourse',
+      args: [courseId]
+    })) as unknown
 
+    if (Array.isArray(result)) {
+      const [priceUSDC, splitter, creator, duration, transferCooldown] =
+        result as ReadCourseTuple
+      return {
+        priceUSDC,
+        splitter,
+        creator,
+        duration,
+        transferCooldown
+      }
+    }
+
+    const struct = result as ReadCourseStruct
     return {
-      priceUSDC,
-      splitter,
-      creator,
-      duration,
-      transferCooldown
+      priceUSDC: struct.priceUSDC,
+      splitter: struct.splitter,
+      creator: struct.creator,
+      duration: struct.duration,
+      transferCooldown: struct.transferCooldown
     }
   }
 
   async getPassState(courseId: bigint, account: Address) {
-    const [expiresAt, cooldownEndsAt] =
-      (await this.publicClient.readContract({
-        abi: membershipPass1155Abi,
-        address: this.address,
-        functionName: 'getPassState',
-        args: [courseId, account]
-      })) as unknown as PassStateTuple
+    const result = (await this.publicClient.readContract({
+      abi: membershipPass1155Abi,
+      address: this.address,
+      functionName: 'getPassState',
+      args: [courseId, account]
+    })) as unknown
 
-    return { expiresAt, cooldownEndsAt }
+    if (Array.isArray(result)) {
+      const [expiresAt, cooldownEndsAt] = result as PassStateTuple
+      return { expiresAt, cooldownEndsAt }
+    }
+
+    const struct = result as PassStateStruct
+    return {
+      expiresAt: struct.expiresAt,
+      cooldownEndsAt: struct.cooldownEndsAt
+    }
   }
 
   async isPassActive(courseId: bigint, account: Address) {
@@ -73,15 +112,24 @@ export class MembershipPassService extends OnchainService {
   }
 
   async canTransfer(courseId: bigint, account: Address) {
-    const [eligible, availableAt, expiresAt] =
-      (await this.publicClient.readContract({
-        abi: membershipPass1155Abi,
-        address: this.address,
-        functionName: 'canTransfer',
-        args: [courseId, account]
-      })) as unknown as TransferCheckTuple
+    const result = (await this.publicClient.readContract({
+      abi: membershipPass1155Abi,
+      address: this.address,
+      functionName: 'canTransfer',
+      args: [courseId, account]
+    })) as unknown
 
-    return { eligible, availableAt, expiresAt }
+    if (Array.isArray(result)) {
+      const [eligible, availableAt, expiresAt] = result as TransferCheckTuple
+      return { eligible, availableAt, expiresAt }
+    }
+
+    const struct = result as TransferCheckStruct
+    return {
+      eligible: struct.eligible,
+      availableAt: struct.availableAt,
+      expiresAt: struct.expiresAt
+    }
   }
 
   async setPrice(
