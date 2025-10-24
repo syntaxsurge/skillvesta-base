@@ -7,6 +7,7 @@ import {
 } from '@coinbase/onchainkit/identity'
 import { formatDistanceToNow } from 'date-fns'
 import { Trash2 } from 'lucide-react'
+import { base } from 'viem/chains'
 
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
@@ -47,9 +48,9 @@ export function GroupCommentCard({ comment }: GroupCommentCardProps) {
         </button>
       )}
 
-      <OnchainIdentity address={authorAddress}>
-        <OnchainAvatar className='h-10 w-10' />
-        <OnchainName className='font-semibold' />
+      <OnchainIdentity address={authorAddress} chain={base}>
+        <OnchainAvatar className='h-10 w-10' chain={base} />
+        <OnchainName className='font-semibold' chain={base} />
       </OnchainIdentity>
 
       <div className='flex-1 space-y-1'>

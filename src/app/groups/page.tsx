@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 
 import { useMutation } from 'convex/react'
 import { useAccount } from 'wagmi'
+import { base } from 'viem/chains'
+import { useName } from '@coinbase/onchainkit/identity'
 
 import { api } from '@/convex/_generated/api'
 import { GroupDirectory } from '@/features/groups/components/group-directory'
@@ -11,13 +13,23 @@ import { GroupDirectory } from '@/features/groups/components/group-directory'
 export default function GroupsPage() {
   const { address } = useAccount()
   const storeUser = useMutation(api.users.store)
+  const { data: basename } = useName(
+    {
+      address: (address ??
+        '0x0000000000000000000000000000000000000000') as `0x${string}`,
+      chain: base
+    },
+    {
+      enabled: !!address
+    }
+  )
 
   useEffect(() => {
     if (!address) return
-    storeUser({ address }).catch(() => {
+    storeUser({ address, basename: basename ?? undefined }).catch(() => {
       /* ignore duplicate upsert errors */
     })
-  }, [address, storeUser])
+  }, [address, basename, storeUser])
 
   return (
     <div className='relative min-h-screen overflow-hidden bg-gradient-to-br from-background via-background to-muted/20'>

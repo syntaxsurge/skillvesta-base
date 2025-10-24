@@ -6,6 +6,8 @@ import { useEffect } from 'react'
 import { useMutation } from 'convex/react'
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { useAccount } from 'wagmi'
+import { base } from 'viem/chains'
+import { useName } from '@coinbase/onchainkit/identity'
 
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -70,13 +72,23 @@ const testimonials = [
 export default function HomePage() {
   const { address } = useAccount()
   const storeUser = useMutation(api.users.store)
+  const { data: basename } = useName(
+    {
+      address: (address ??
+        '0x0000000000000000000000000000000000000000') as `0x${string}`,
+      chain: base
+    },
+    {
+      enabled: !!address
+    }
+  )
 
   useEffect(() => {
     if (!address) return
-    storeUser({ address }).catch(() => {
+    storeUser({ address, basename: basename ?? undefined }).catch(() => {
       /* ignore duplicate upsert errors */
     })
-  }, [address, storeUser])
+  }, [address, basename, storeUser])
 
   return (
     <main className='relative overflow-hidden'>

@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
+import { base } from 'viem/chains'
+import { useName } from '@coinbase/onchainkit/identity'
 
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
@@ -38,6 +40,17 @@ export function GroupAboutSection() {
   const { address } = useAccount()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const isPaidGroup = (group.price ?? 0) > 0
+  const ownerAddress = owner?.walletAddress as `0x${string}` | undefined
+  const { data: ownerBasename } = useName(
+    {
+      address: (ownerAddress ??
+        '0x0000000000000000000000000000000000000000') as `0x${string}`,
+      chain: base
+    },
+    {
+      enabled: !!ownerAddress
+    }
+  )
   const membershipAddress = useMemo(() => {
     const value = MEMBERSHIP_CONTRACT_ADDRESS?.trim()
     return value ? (value as `0x${string}`) : null
@@ -186,6 +199,7 @@ export function GroupAboutSection() {
 
   const creatorName =
     owner?.displayName ??
+    ownerBasename ??
     owner?.basename ??
     (owner?.walletAddress
       ? `${owner.walletAddress.slice(0, 6)}...${owner.walletAddress.slice(-4)}`
