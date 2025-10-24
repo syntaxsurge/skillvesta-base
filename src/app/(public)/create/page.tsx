@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -76,6 +76,14 @@ const createGroupSchema = z
           message: 'Price must be greater than zero'
         })
       }
+
+      if (data.visibility !== 'private') {
+        ctx.addIssue({
+          path: ['visibility'],
+          code: z.ZodIssueCode.custom,
+          message: 'Paid memberships must be private.'
+        })
+      }
     }
 
     if (!isValidMediaReference(data.thumbnailUrl)) {
@@ -124,6 +132,20 @@ export default function Create() {
     resolver: zodResolver(createGroupSchema),
     defaultValues: DEFAULT_VALUES
   })
+
+  const billingCadence = form.watch('billingCadence')
+
+  useEffect(() => {
+    if (
+      billingCadence === 'monthly' &&
+      form.getValues('visibility') !== 'private'
+    ) {
+      form.setValue('visibility', 'private', {
+        shouldDirty: true,
+        shouldValidate: true
+      })
+    }
+  }, [billingCadence, form])
 
   const isProcessing = form.formState.isSubmitting
 
@@ -189,6 +211,9 @@ export default function Create() {
         .map(tag => tag.trim().toLowerCase())
         .filter(Boolean)
 
+      const resolvedVisibility =
+        values.billingCadence === 'monthly' ? 'private' : values.visibility
+
       const groupId = await createGroup({
         ownerAddress: address,
         name: values.name.trim(),
@@ -198,7 +223,7 @@ export default function Create() {
         thumbnailUrl: thumbnailSource || undefined,
         galleryUrls: gallery.length ? gallery : undefined,
         tags,
-        visibility: values.visibility,
+        visibility: resolvedVisibility,
         billingCadence:
           formattedPrice > 0 ? 'monthly' : values.billingCadence,
         price: formattedPrice
@@ -266,7 +291,7 @@ export default function Create() {
                     <FormControl>
                       <Textarea
                         rows={3}
-                        placeholder='Share what members will experience in two sentences.'
+                        placeholder='Share what members will experience.'
                         {...field}
                       />
                     </FormControl>
@@ -285,6 +310,7 @@ export default function Create() {
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
+                        disabled={billingCadence === 'monthly'}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -292,7 +318,12 @@ export default function Create() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value='public'>Public</SelectItem>
+                          <SelectItem
+                            value='public'
+                            disabled={billingCadence === 'monthly'}
+                          >
+                            Public
+                          </SelectItem>
                           <SelectItem value='private'>Private</SelectItem>
                         </SelectContent>
                       </Select>
