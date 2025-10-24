@@ -365,7 +365,7 @@ export default function Create() {
               { icon: '🚀', title: 'Drive Engagement', desc: 'Keep your community active' },
               { icon: '💖', title: 'Easy Setup', desc: 'Launch in minutes' },
               { icon: '💸', title: 'Monetize', desc: 'Base-native payments' },
-              { icon: '📱', title: 'Mobile Ready', desc: 'iOS & Android apps' },
+              { icon: '🖥️', title: 'Browser First', desc: 'Polished desktop experience' },
               { icon: '🌍', title: 'Global Reach', desc: 'Connect worldwide' },
               { icon: '🎓', title: 'Course Builder', desc: 'Built-in classroom' }
             ].map((feature, i) => (
