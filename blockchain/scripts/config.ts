@@ -89,6 +89,10 @@ export const existingMembershipAddress = env.MEMBERSHIP_CONTRACT_ADDRESS
   ? normalise(env.MEMBERSHIP_CONTRACT_ADDRESS)
   : "";
 
+export const existingRegistrarAddress = env.NEXT_PUBLIC_REGISTRAR_CONTRACT_ADDRESS
+  ? normalise(env.NEXT_PUBLIC_REGISTRAR_CONTRACT_ADDRESS)
+  : "";
+
 export const membershipDurationSeconds = parseUintEnv("MEMBERSHIP_DURATION_SECONDS", 60 * 60 * 24 * 30); // 30 days
 export const membershipTransferCooldownSeconds = parseUintEnv(
   "MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS",

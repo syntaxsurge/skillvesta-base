@@ -15,6 +15,7 @@ contract Registrar is AccessControl {
 
     IERC20 public immutable usdc;
     MembershipPass1155 public immutable membership;
+    address public marketplace;
 
     event CourseRegistered(
         uint256 indexed courseId,
@@ -36,6 +37,11 @@ contract Registrar is AccessControl {
         _grantRole(ADMIN_ROLE, admin);
     }
 
+    function setMarketplace(address marketplaceAddress) external onlyRole(ADMIN_ROLE) {
+        require(marketplaceAddress != address(0), "Marketplace address zero");
+        marketplace = marketplaceAddress;
+    }
+
     function registerCourse(
         uint256 courseId,
         uint256 priceUSDC,
@@ -44,7 +50,7 @@ contract Registrar is AccessControl {
         uint64 duration,
         uint64 transferCooldown
     ) external returns (address splitterAddress) {
-        SplitPayout splitter = new SplitPayout(usdc, address(membership), recipients, sharesBps);
+        SplitPayout splitter = new SplitPayout(usdc, address(membership), marketplace, recipients, sharesBps);
         splitterAddress = address(splitter);
 
         membership.createCourse(courseId, priceUSDC, splitterAddress, msg.sender, duration, transferCooldown);

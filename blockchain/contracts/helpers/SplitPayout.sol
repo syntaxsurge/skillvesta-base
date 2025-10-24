@@ -14,6 +14,7 @@ contract SplitPayout is ReentrancyGuard {
 
     IERC20 public immutable usdc;
     address public immutable membership;
+    address public immutable marketplace;
 
     uint32 public constant TOTAL_BPS = 10_000;
 
@@ -32,19 +33,24 @@ contract SplitPayout is ReentrancyGuard {
     error InvalidShares();
     error ZeroAddressRecipient();
 
-    modifier onlyMembership() {
-        require(msg.sender == membership, "Only membership");
+    modifier onlyAuthorized() {
+        require(
+            msg.sender == membership || msg.sender == marketplace,
+            "Only membership or marketplace"
+        );
         _;
     }
 
     constructor(
         IERC20 usdcToken,
         address membership_,
+        address marketplace_,
         address[] memory _recipients,
         uint32[] memory _sharesBps
     ) {
         require(address(usdcToken) != address(0), "USDC address zero");
         require(membership_ != address(0), "Membership address zero");
+        require(marketplace_ != address(0), "Marketplace address zero");
         if (_recipients.length == 0 || _recipients.length != _sharesBps.length) revert InvalidRecipients();
 
         uint256 sum = 0;
@@ -56,11 +62,12 @@ contract SplitPayout is ReentrancyGuard {
 
         usdc = usdcToken;
         membership = membership_;
+        marketplace = marketplace_;
         recipients = _recipients;
         sharesBps = _sharesBps;
     }
 
-    function recordPayment(address payer, uint256 amount) external onlyMembership {
+    function recordPayment(address payer, uint256 amount) external onlyAuthorized {
         totalReceived += amount;
         emit PaymentReceived(payer, amount);
     }

@@ -3,6 +3,7 @@ import hre from "hardhat";
 import {
   adminAddress,
   existingMembershipAddress,
+  existingRegistrarAddress,
   marketplaceFeeBps,
   marketplaceMaxListingDuration,
   marketplaceTreasuryAddress,
@@ -46,6 +47,13 @@ async function main() {
   const tx = await membership.grantRole(marketplaceRole, address);
   await tx.wait();
   console.log("🔑 MARKETPLACE_ROLE granted on MembershipPass1155");
+
+  if (existingRegistrarAddress) {
+    const registrar = await ethers.getContractAt("Registrar", existingRegistrarAddress);
+    const setTx = await registrar.setMarketplace(address);
+    await setTx.wait();
+    console.log("🔧 Registrar marketplace set");
+  }
 
   if (shouldVerifyNetwork(network.name)) {
     try {
