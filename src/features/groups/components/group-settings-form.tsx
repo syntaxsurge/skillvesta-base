@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
@@ -82,6 +82,14 @@ const settingsSchema = z
           path: ['price'],
           code: z.ZodIssueCode.custom,
           message: 'Price must be greater than zero'
+        })
+      }
+
+      if (data.visibility !== 'private') {
+        ctx.addIssue({
+          path: ['visibility'],
+          code: z.ZodIssueCode.custom,
+          message: 'Paid memberships must be private.'
         })
       }
     }
@@ -172,6 +180,21 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
       }))
     }
   })
+
+  const billingCadence = form.watch('billingCadence')
+
+  useEffect(() => {
+    if (
+      billingCadence === 'monthly' &&
+      form.getValues('visibility') !== 'private'
+    ) {
+      form.setValue('visibility', 'private', {
+        shouldDirty: true,
+        shouldValidate: true
+      })
+    }
+  }, [billingCadence, form])
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'administrators'
@@ -250,6 +273,9 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         .map(tag => tag.trim().toLowerCase())
         .filter(Boolean)
 
+      const resolvedVisibility =
+        values.billingCadence === 'monthly' ? 'private' : values.visibility
+
       const administratorPayload = (
         values.administrators?.map(admin => {
           const wallet = admin.walletAddress.trim()
@@ -296,7 +322,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
         thumbnailUrl: thumbnailSource || undefined,
         galleryUrls: gallery,
         tags,
-        visibility: values.visibility,
+        visibility: resolvedVisibility,
         billingCadence: parsedPrice > 0 ? 'monthly' : values.billingCadence,
         price: parsedPrice,
         administrators: normalizedAdministrators
@@ -342,6 +368,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
+                  disabled={billingCadence === 'monthly'}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -349,7 +376,12 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value='public'>Public</SelectItem>
+                    <SelectItem
+                      value='public'
+                      disabled={billingCadence === 'monthly'}
+                    >
+                      Public
+                    </SelectItem>
                     <SelectItem value='private'>Private</SelectItem>
                   </SelectContent>
                 </Select>
@@ -392,7 +424,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
           />
         </div>
 
-        {form.watch('billingCadence') === 'monthly' && (
+        {billingCadence === 'monthly' && (
           <FormField
             control={form.control}
             name='price'
