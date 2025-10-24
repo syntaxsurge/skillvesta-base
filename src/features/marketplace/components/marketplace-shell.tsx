@@ -985,6 +985,23 @@ function ListDialog({
     ? formatTimestampRelative(selectedCourse.user.expiresAt)
     : '—'
 
+  const transferReady = Boolean(selectedCourse?.user?.canTransfer)
+  const listingDisabled = isSubmitting || !selectedCourse || !transferReady
+  const cooldownLabel =
+    selectedCourse?.user && !selectedCourse.user.canTransfer
+      ? selectedCourse.user.transferAvailableAt === 0n
+        ? 'Transfer cooldown is still settling. Please retry shortly.'
+        : `Transfer cooldown ends ${formatTimestampRelative(selectedCourse.user.transferAvailableAt)}.`
+      : null
+  const listingDisabledReason = (() => {
+    if (isSubmitting) return null
+    if (!selectedCourse) return 'Select a membership before creating a listing.'
+    if (!transferReady) {
+      return cooldownLabel ?? 'Transfer cooldown is still active.'
+    }
+    return null
+  })()
+
   return (
     <Dialog open={state.open} onOpenChange={open => (!open ? onClose() : null)}>
       <DialogContent className='sm:max-w-lg'>
@@ -1033,6 +1050,11 @@ function ListDialog({
                 <p className='text-muted-foreground'>
                   Cooldown {formatDurationShort(selectedCourse.stats.cooldown)}
                 </p>
+                {!transferReady && cooldownLabel && (
+                  <p className='text-xs text-amber-600 dark:text-amber-400'>
+                    {cooldownLabel}
+                  </p>
+                )}
               </>
             ) : (
               <p className='text-muted-foreground'>
@@ -1078,10 +1100,14 @@ function ListDialog({
           <Button variant='ghost' onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedCourse}>
+          <Button onClick={handleSubmit} disabled={listingDisabled}>
             {isSubmitting ? 'Listing...' : 'Create listing'}
           </Button>
         </DialogFooter>
+
+        {listingDisabledReason && (
+          <p className='pt-2 text-xs text-muted-foreground'>{listingDisabledReason}</p>
+        )}
       </DialogContent>
     </Dialog>
   )
