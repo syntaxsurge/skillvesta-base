@@ -12,22 +12,6 @@ const securityHeaders = [
       'camera=(), microphone=(), geolocation=(), interest-cohort=(), usb=(), payment=(), accelerometer=(), autoplay=()'
   },
   {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-      "frame-src 'self' https: blob: data:",
-      "frame-ancestors 'none'",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob: https:",
-      "font-src 'self' data:",
-      "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
-      "connect-src 'self' https: http: ws: wss:"
-    ].join('; ')
-  },
-  {
     key: 'Strict-Transport-Security',
     value: 'max-age=15552000; includeSubDomains'
   }

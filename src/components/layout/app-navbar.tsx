@@ -18,7 +18,7 @@ export function AppNavbar() {
       <div className='mx-auto flex h-16 w-full items-center justify-between gap-6 px-6'>
         <div className='flex items-center gap-6'>
           <Link href='/' className='hidden sm:block'>
-            <Logo width={140} height={32} className='h-8 w-auto' />
+            <Logo width={152} height={32} />
           </Link>
           <GroupSwitcher />
           <nav className='flex items-center gap-2'>

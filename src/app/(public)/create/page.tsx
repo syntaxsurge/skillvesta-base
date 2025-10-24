@@ -341,7 +341,7 @@ export default function Create() {
         {/* Header */}
         <div className='mb-12 text-center'>
           <div className='mb-6 flex justify-center'>
-            <Logo width={180} height={40} />
+            <Logo />
           </div>
           <h1 className='mb-4 text-5xl font-bold tracking-tight text-foreground md:text-6xl'>
             Launch your community
