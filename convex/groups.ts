@@ -208,6 +208,31 @@ function collectStorageReference(
   target.add(reference as Id<'_storage'>)
 }
 
+function collectStorageReferencesFromValue(
+  target: Set<Id<'_storage'>>,
+  value: unknown
+) {
+  if (!value) {
+    return
+  }
+
+  if (typeof value === 'string') {
+    collectStorageReference(target, value)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(entry => collectStorageReferencesFromValue(target, entry))
+    return
+  }
+
+  if (typeof value === 'object') {
+    Object.values(value as Record<string, unknown>).forEach(entry =>
+      collectStorageReferencesFromValue(target, entry)
+    )
+  }
+}
+
 function resolveVisibility(
   requested: VisibilityOption | undefined
 ): VisibilityOption {
@@ -824,16 +849,14 @@ export const remove = mutation({
     }
 
     const storageIds = new Set<Id<'_storage'>>()
-    collectStorageReference(storageIds, group.thumbnailUrl)
-    collectStorageReference(storageIds, group.aboutUrl)
-    ;(group.galleryUrls ?? []).forEach(url =>
-      collectStorageReference(storageIds, url)
-    )
+    collectStorageReferencesFromValue(storageIds, group)
 
     const administrators = await ctx.db
       .query('groupAdministrators')
       .withIndex('by_groupId', q => q.eq('groupId', groupId))
       .collect()
+
+    collectStorageReferencesFromValue(storageIds, administrators)
 
     await Promise.all(
       administrators.map(entry => ctx.db.delete(entry._id))
@@ -844,6 +867,8 @@ export const remove = mutation({
       .withIndex('by_groupId', q => q.eq('groupId', groupId))
       .collect()
 
+    collectStorageReferencesFromValue(storageIds, memberships)
+
     await Promise.all(memberships.map(entry => ctx.db.delete(entry._id)))
 
     const courses = await ctx.db
@@ -851,19 +876,25 @@ export const remove = mutation({
       .withIndex('by_groupId', q => q.eq('groupId', groupId))
       .collect()
 
+    collectStorageReferencesFromValue(storageIds, courses)
+
     for (const course of courses) {
-      collectStorageReference(storageIds, course.thumbnailUrl)
+      collectStorageReferencesFromValue(storageIds, course)
 
       const modules = await ctx.db
         .query('modules')
         .withIndex('by_courseId', q => q.eq('courseId', course._id))
         .collect()
 
+      collectStorageReferencesFromValue(storageIds, modules)
+
       for (const module of modules) {
         const lessons = await ctx.db
           .query('lessons')
           .withIndex('by_moduleId', q => q.eq('moduleId', module._id))
           .collect()
+
+        collectStorageReferencesFromValue(storageIds, lessons)
 
         await Promise.all(
           lessons.map(lesson => ctx.db.delete(lesson._id))
@@ -880,17 +911,23 @@ export const remove = mutation({
       .withIndex('by_groupId', q => q.eq('groupId', groupId))
       .collect()
 
+    collectStorageReferencesFromValue(storageIds, posts)
+
     for (const post of posts) {
       const comments = await ctx.db
         .query('comments')
         .withIndex('by_postId', q => q.eq('postId', post._id))
         .collect()
+
+      collectStorageReferencesFromValue(storageIds, comments)
       await Promise.all(comments.map(comment => ctx.db.delete(comment._id)))
 
       const likes = await ctx.db
         .query('likes')
         .withIndex('by_postId', q => q.eq('postId', post._id))
         .collect()
+
+      collectStorageReferencesFromValue(storageIds, likes)
       await Promise.all(likes.map(like => ctx.db.delete(like._id)))
 
       await ctx.db.delete(post._id)
