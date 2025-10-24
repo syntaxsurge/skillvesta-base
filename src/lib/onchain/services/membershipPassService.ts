@@ -132,6 +132,22 @@ export class MembershipPassService extends OnchainService {
     }
   }
 
+  async balanceOf(account: Address, courseId: bigint) {
+    const result = (await this.publicClient.readContract({
+      abi: membershipPass1155Abi as any,
+      address: this.address,
+      functionName: 'balanceOf',
+      args: [account, courseId]
+    })) as unknown
+    if (typeof result === 'bigint') return result
+    if (Array.isArray(result)) {
+      const [value] = result as [bigint]
+      return value
+    }
+    const numeric = BigInt(result as any)
+    return numeric
+  }
+
   async setPrice(
     courseId: bigint,
     newPrice: bigint,

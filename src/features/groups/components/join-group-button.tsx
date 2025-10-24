@@ -190,11 +190,15 @@ export function JoinGroupButton() {
             courseId: courseIdStrict.toString(),
             address
           })
-          const state = await membershipService!.getPassState(courseIdStrict, address as Address)
+          const [state, balance] = await Promise.all([
+            membershipService!.getPassState(courseIdStrict, address as Address),
+            membershipService!.balanceOf(address as Address, courseIdStrict)
+          ])
           passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
-          const hasPassNow = await membershipService!.isPassActive(courseIdStrict, address as Address)
+          const hasPassNow = balance > 0n
           console.log('[JoinGroup] Pass verification result', {
             hasPassNow,
+            balance: balance.toString(),
             expiresAt: state.expiresAt.toString(),
             cooldownEndsAt: state.cooldownEndsAt.toString()
           })
