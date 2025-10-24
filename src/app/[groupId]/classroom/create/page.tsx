@@ -6,11 +6,10 @@ import { useAccount } from 'wagmi'
 import { useAppRouter } from '@/hooks/use-app-router'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/convex/_generated/api'
 import { useApiMutation } from '@/hooks/use-api-mutation'
 import { useGroupContext } from '@/features/groups/context/group-context'
+import { CourseMetadataEditor } from '@/features/classroom/components/course/course-metadata-editor'
 
 interface CreateCourseProps {
   params: Promise<{
@@ -23,6 +22,7 @@ const CreateCourse = (_props: CreateCourseProps) => {
   const { mutate: create, pending } = useApiMutation(api.courses.create)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined)
   const { address } = useAccount()
   const { group } = useGroupContext()
 
@@ -32,11 +32,13 @@ const CreateCourse = (_props: CreateCourseProps) => {
     const courseId = await create({
       title,
       description,
+      thumbnailUrl,
       groupId,
       address
     })
     setTitle('')
     setDescription('')
+    setThumbnailUrl(undefined)
     router.push(`/${groupId}/classroom/${courseId}`)
   }
 
@@ -138,54 +140,24 @@ const CreateCourse = (_props: CreateCourseProps) => {
                   </p>
                 </div>
 
-                <div className='space-y-5'>
-                  <div className='space-y-2'>
-                    <label
-                      htmlFor='course-title'
-                      className='text-sm font-semibold text-foreground'
-                    >
-                      Course Title
-                    </label>
-                    <Input
-                      id='course-title'
-                      placeholder='e.g., Introduction to Web Development'
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      className='h-12'
-                    />
-                    <p className='text-xs text-muted-foreground'>
-                      Give your course a clear, descriptive title
-                    </p>
-                  </div>
+                <CourseMetadataEditor
+                  mode='create'
+                  title={title}
+                  description={description}
+                  thumbnailUrl={thumbnailUrl}
+                  onTitleChange={setTitle}
+                  onDescriptionChange={setDescription}
+                  onThumbnailChange={setThumbnailUrl}
+                />
 
-                  <div className='space-y-2'>
-                    <label
-                      htmlFor='course-description'
-                      className='text-sm font-semibold text-foreground'
-                    >
-                      Course Description
-                    </label>
-                    <Textarea
-                      id='course-description'
-                      placeholder='Describe what learners will gain from this course...'
-                      value={description}
-                      onChange={e => setDescription(e.target.value)}
-                      className='min-h-[120px] resize-none'
-                    />
-                    <p className='text-xs text-muted-foreground'>
-                      Explain the key learning outcomes and benefits
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={handleCreate}
-                    disabled={pending || !title.trim()}
-                    className='h-12 w-full text-base font-semibold'
-                    size='lg'
-                  >
-                    {pending ? 'Creating...' : 'Create Course'}
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleCreate}
+                  disabled={pending || !title.trim()}
+                  className='h-12 w-full text-base font-semibold'
+                  size='lg'
+                >
+                  {pending ? 'Creating...' : 'Create Course'}
+                </Button>
 
                 {!address && (
                   <div className='rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive'>

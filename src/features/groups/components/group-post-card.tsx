@@ -29,6 +29,8 @@ import { useCurrentUser } from '@/hooks/use-current-user'
 import { cn } from '@/lib/utils'
 
 import { GroupPostContent } from './group-post-content'
+import { useGroupContext } from '@/features/groups/context/group-context'
+import { Badge } from '@/components/ui/badge'
 
 type GroupPostCardProps = {
   post: Doc<'posts'> & {
@@ -41,6 +43,7 @@ type GroupPostCardProps = {
 
 export function GroupPostCard({ post, className }: GroupPostCardProps) {
   const { currentUser, address } = useCurrentUser()
+  const { group, owner, administrators } = useGroupContext()
 
   const { mutate: likePost, pending: isLiking } = useApiMutation(api.likes.add)
   const { mutate: removePost, pending: isRemoving } = useApiMutation(
@@ -51,6 +54,10 @@ export function GroupPostCard({ post, className }: GroupPostCardProps) {
   )
 
   const isOwner = currentUser?._id === post.author._id
+  const isAuthorGroupOwner = post.author._id === owner?._id
+  const isAuthorAdmin = administrators.some(
+    admin => admin.user._id === post.author._id
+  )
 
   const authorAddress = post.author.walletAddress as `0x${string}`
   const authorLabel =
@@ -109,7 +116,19 @@ export function GroupPostCard({ post, className }: GroupPostCardProps) {
               </AvatarFallback>
             </Avatar>
             <div className='flex flex-col'>
-              <p className='text-sm font-semibold text-foreground'>{authorLabel}</p>
+              <div className='flex items-center gap-2'>
+                <p className='text-sm font-semibold text-foreground'>{authorLabel}</p>
+                {isAuthorGroupOwner && (
+                  <Badge variant='default' className='h-5 px-2 text-xs'>
+                    Owner
+                  </Badge>
+                )}
+                {!isAuthorGroupOwner && isAuthorAdmin && (
+                  <Badge variant='outline' className='h-5 px-2 text-xs'>
+                    Admin
+                  </Badge>
+                )}
+              </div>
               <span className='text-xs text-muted-foreground'>{createdAtLabel}</span>
             </div>
           </div>

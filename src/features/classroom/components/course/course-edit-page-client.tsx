@@ -1,44 +1,26 @@
 'use client'
 
-import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useMutation, useQuery } from 'convex/react'
 import {
-  BookCheck,
   CaseSensitive,
   Component,
   Fullscreen,
-  ImageIcon,
-  Link2,
   Plus,
-  Trash2,
-  UploadCloud,
-  X
+  Trash2
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { LoadingIndicator } from '@/components/feedback/loading-indicator'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { LessonEditorView } from '@/features/classroom/components/course/lesson-editor-view'
 import { ModuleNameEditor } from '@/features/classroom/components/course/module-name-editor'
-import { MediaDropzone } from '@/features/groups/components/media-dropzone'
-import { useApiMutation } from '@/hooks/use-api-mutation'
+import { CourseMetadataEditor } from '@/features/classroom/components/course/course-metadata-editor'
 import { useCurrentUser } from '@/hooks/use-current-user'
-import { useResolvedMediaUrl } from '@/hooks/use-resolved-media-url'
 import { useAppRouter } from '@/hooks/use-app-router'
-import { isStorageReference, toStorageSource } from '@/lib/media'
 import { cn } from '@/lib/utils'
 
 type CourseEditPageClientProps = {
@@ -57,12 +39,9 @@ export function CourseEditPageClient({
   const course = useQuery(api.courses.get, {
     id: courseId
   }) as CourseWithRelations | null | undefined
+
   const updateTitle = useMutation(api.courses.updateTitle)
-  const generateUploadUrl = useMutation(api.media.generateUploadUrl)
-  const { mutate: updateDescription, pending: descriptionPending } =
-    useApiMutation(api.courses.updateDescription)
-  const { mutate: updateThumbnail, pending: thumbnailPending } =
-    useApiMutation(api.courses.updateThumbnail)
+  const updateDescription = useMutation(api.courses.updateDescription)
 
   const { currentUser, address } = useCurrentUser()
   const group = useQuery(api.groups.get, { id: groupId })
@@ -70,40 +49,22 @@ export function CourseEditPageClient({
   const [selectedLesson, setSelectedLesson] = useState<Doc<'lessons'> | null>(
     null
   )
+  const [courseTitle, setCourseTitle] = useState('')
   const [courseDescription, setCourseDescription] = useState('')
-  const [thumbnailSource, setThumbnailSource] = useState<string>('')
-  const [thumbnailLinkInput, setThumbnailLinkInput] = useState('')
-  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false)
-  const [thumbnailTab, setThumbnailTab] = useState<'upload' | 'link'>('upload')
+  const [courseThumbnailUrl, setCourseThumbnailUrl] = useState<string | undefined>(undefined)
   const addLesson = useMutation(api.lessons.add)
   const addModule = useMutation(api.modules.add)
   const removeLesson = useMutation(api.lessons.remove)
   const removeModule = useMutation(api.modules.remove)
-  const { url: thumbnailPreviewUrl, loading: thumbnailPreviewLoading } =
-    useResolvedMediaUrl(thumbnailSource || course?.thumbnailUrl)
-  const courseThumbnailValue = course?.thumbnailUrl ?? ''
-  const canRemoveThumbnail = useMemo(
-    () => Boolean(thumbnailSource || thumbnailLinkInput.trim()),
-    [thumbnailSource, thumbnailLinkInput]
-  )
 
   useEffect(() => {
     if (!course) {
       return
     }
+    setCourseTitle(course.title ?? '')
     setCourseDescription(course.description ?? '')
-    setThumbnailSource(courseThumbnailValue)
-    setThumbnailLinkInput(
-      courseThumbnailValue && !isStorageReference(courseThumbnailValue)
-        ? courseThumbnailValue
-        : ''
-    )
-    setThumbnailTab(
-      courseThumbnailValue && !isStorageReference(courseThumbnailValue)
-        ? 'link'
-        : 'upload'
-    )
-  }, [course?._id, course?.description, courseThumbnailValue])
+    setCourseThumbnailUrl(course.thumbnailUrl)
+  }, [course?._id, course?.title, course?.description, course?.thumbnailUrl])
 
   useEffect(() => {
     if (!course) return
@@ -144,40 +105,34 @@ export function CourseEditPageClient({
     router.push(`/${groupId}/classroom/${course._id}`)
   }
 
-  const handleTitleUpdate = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTitleChange = async (newTitle: string) => {
     if (!address) return
-    updateTitle({ title: e.target.value, id: course._id, address })
-  }
-
-  const applyThumbnailSource = (next: string | null) => {
-    const resolved = next ?? ''
-    const isLinkSource = Boolean(resolved) && !isStorageReference(resolved)
-    setThumbnailSource(resolved)
-    setThumbnailLinkInput(isLinkSource ? resolved : '')
-    setThumbnailTab(isLinkSource ? 'link' : 'upload')
-  }
-
-  const handleDescriptionBlur = async () => {
-    if (!address || descriptionPending) return
-    const trimmed = courseDescription.trim()
-    if (trimmed === course.description.trim()) {
-      setCourseDescription(course.description)
-      return
+    try {
+      await updateTitle({ title: newTitle, id: course._id, address })
+      setCourseTitle(newTitle)
+    } catch (error) {
+      console.error('Failed to update course title', error)
+      toast.error('Unable to update the course title.')
     }
+  }
 
+  const handleDescriptionChange = async (newDescription: string) => {
+    if (!address) return
     try {
       await updateDescription({
         id: course._id,
-        description: trimmed,
+        description: newDescription,
         address
       })
-      setCourseDescription(trimmed)
-      toast.success('Course description updated.')
+      setCourseDescription(newDescription)
     } catch (error) {
       console.error('Failed to update course description', error)
-      setCourseDescription(course.description)
-      toast.error('Unable to update the course description right now.')
+      toast.error('Unable to update the course description.')
     }
+  }
+
+  const handleThumbnailChange = (newThumbnailUrl: string | undefined) => {
+    setCourseThumbnailUrl(newThumbnailUrl)
   }
 
   const handleAddLesson = (moduleId: Id<'modules'>) => {
@@ -192,156 +147,47 @@ export function CourseEditPageClient({
 
   const isOwner = currentUser?._id === group?.ownerId
 
-  const handleThumbnailFiles = async (files: File[]) => {
-    const file = files[0]
-    if (!file || !address || thumbnailPending || isUploadingThumbnail) {
-      return
-    }
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please choose an image file.')
-      return
-    }
-
-    const previousSource = thumbnailSource
-    try {
-      setIsUploadingThumbnail(true)
-      const { uploadUrl } = await generateUploadUrl({})
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type },
-        body: file
-      })
-
-      if (!response.ok) {
-        throw new Error('Upload failed')
-      }
-
-      const payload = (await response.json()) as { storageId?: string }
-      if (!payload.storageId) {
-        throw new Error('Missing storage id')
-      }
-
-      const source = toStorageSource(payload.storageId)
-      await updateThumbnail({
-        id: course._id,
-        thumbnailUrl: source,
-        address
-      })
-      applyThumbnailSource(source)
-      toast.success('Course thumbnail updated.')
-    } catch (error) {
-      console.error('Uploading course thumbnail failed', error)
-      applyThumbnailSource(previousSource)
-      toast.error('Unable to upload that image. Try again with a different file.')
-    } finally {
-      setIsUploadingThumbnail(false)
-    }
+  if (group === undefined || currentUser === undefined) {
+    return <LoadingIndicator fullScreen />
   }
 
-  const handleThumbnailLinkCommit = async () => {
-    if (!address || thumbnailPending) return
-    const trimmed = thumbnailLinkInput.trim()
-    const previousSource = thumbnailSource
-
-    if (!trimmed) {
-      if (!previousSource) return
-      try {
-        await updateThumbnail({
-          id: course._id,
-          thumbnailUrl: undefined,
-          address
-        })
-        applyThumbnailSource('')
-        toast.success('Course thumbnail removed.')
-      } catch (error) {
-        console.error('Removing course thumbnail failed', error)
-        applyThumbnailSource(previousSource)
-        toast.error('Unable to remove the course thumbnail.')
-      }
-      return
-    }
-
-    try {
-      const candidate = new URL(trimmed)
-      if (!['http:', 'https:'].includes(candidate.protocol)) {
-        throw new Error('Unsupported protocol')
-      }
-    } catch {
-      toast.error('Enter a valid image URL that starts with http:// or https://.')
-      return
-    }
-
-    if (trimmed === previousSource) {
-      return
-    }
-
-    try {
-      await updateThumbnail({
-        id: course._id,
-        thumbnailUrl: trimmed,
-        address
-      })
-      applyThumbnailSource(trimmed)
-      toast.success('Course thumbnail updated.')
-    } catch (error) {
-      console.error('Saving thumbnail URL failed', error)
-      applyThumbnailSource(previousSource)
-      toast.error('Unable to update the course thumbnail.')
-    }
+  if (!isOwner) {
+    return (
+      <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
+        Unauthorized
+      </div>
+    )
   }
-
-  const handleClearThumbnail = async () => {
-    if (!thumbnailSource) {
-      setThumbnailLinkInput('')
-      applyThumbnailSource('')
-      return
-    }
-
-    if (!address || thumbnailPending || isUploadingThumbnail) {
-      return
-    }
-
-    const previousSource = thumbnailSource
-    try {
-      await updateThumbnail({
-        id: course._id,
-        thumbnailUrl: undefined,
-        address
-      })
-      applyThumbnailSource('')
-      setThumbnailLinkInput('')
-      toast.success('Course thumbnail removed.')
-    } catch (error) {
-      console.error('Clearing thumbnail failed', error)
-      applyThumbnailSource(previousSource)
-      toast.error('Unable to remove the course thumbnail.')
-    }
-  }
-
-  if (!isOwner) return <div>Unauthorized</div>
 
   return (
-    <div className='flex h-full w-full flex-col gap-4 p-4 md:flex-row'>
-      <div className='w-full md:w-1/4'>
-        {isOwner && (
-          <Button
-            onClick={handleEditClick}
-            variant='secondary'
-            className='mb-10 flex items-center gap-3 text-sm'
-          >
-            <Fullscreen className='h-4 w-4' />
-            <p>Preview</p>
-          </Button>
-        )}
-        <div className='mb-6 flex items-center space-x-3'>
-          <BookCheck />
-          <Input
-            value={course.title}
-            onBlur={handleTitleUpdate}
-            onChange={handleTitleUpdate}
-          />
-        </div>
+    <div className='flex h-full w-full flex-col gap-4 p-4'>
+      <div className='mb-4'>
+        <CourseMetadataEditor
+          mode='edit'
+          courseId={course._id}
+          title={courseTitle}
+          description={courseDescription}
+          thumbnailUrl={courseThumbnailUrl}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onThumbnailChange={handleThumbnailChange}
+          address={address ?? undefined}
+        />
+      </div>
+
+      <div className='flex h-full w-full flex-col gap-4 md:flex-row'>
+        <div className='w-full md:w-1/4'>
+          {isOwner && (
+            <Button
+              onClick={handleEditClick}
+              variant='secondary'
+              className='mb-10 flex items-center gap-3 text-sm'
+            >
+              <Fullscreen className='h-4 w-4' />
+              <p>Preview</p>
+            </Button>
+          )}
+
 
         {course.modules.map(module => (
           <div key={module._id} className='mb-8'>
@@ -435,122 +281,6 @@ export function CourseEditPageClient({
       </div>
       <div className='flex-grow space-y-4 md:w-3/4'>
         <div className='rounded-xl border border-border bg-card p-4 shadow-sm'>
-          <div className='space-y-4'>
-            <div className='space-y-1'>
-              <h2 className='text-sm font-semibold text-foreground'>
-                Course thumbnail
-              </h2>
-              <p className='text-xs text-muted-foreground'>
-                Learners see this image in the classroom grid and course overview.
-              </p>
-            </div>
-            <Tabs
-              value={thumbnailTab}
-              onValueChange={value => setThumbnailTab(value as 'upload' | 'link')}
-              className='space-y-3'
-            >
-              <TabsList className='grid w-full grid-cols-2'>
-                <TabsTrigger value='upload' className='flex items-center gap-2'>
-                  <UploadCloud className='h-4 w-4' />
-                  Upload
-                </TabsTrigger>
-                <TabsTrigger value='link' className='flex items-center gap-2'>
-                  <Link2 className='h-4 w-4' />
-                  Link
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value='upload'>
-                <MediaDropzone
-                  accept='image/*'
-                  onSelect={files => {
-                    void handleThumbnailFiles(files)
-                  }}
-                  disabled={thumbnailPending || isUploadingThumbnail}
-                  uploading={isUploadingThumbnail}
-                  dropAreaClassName='min-h-[200px] p-4'
-                >
-                  {thumbnailPreviewLoading ? (
-                    <Skeleton className='h-[200px] w-full rounded-lg' />
-                  ) : thumbnailPreviewUrl ? (
-                    <div className='relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted'>
-                      <Image
-                        src={thumbnailPreviewUrl}
-                        alt={`${course.title} thumbnail`}
-                        fill
-                        className='object-cover'
-                        sizes='360px'
-                      />
-                    </div>
-                  ) : (
-                    <div className='flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground'>
-                      <ImageIcon className='h-6 w-6' />
-                      <span>Drag & drop an image to represent your course.</span>
-                      <span className='text-xs text-muted-foreground'>
-                        PNG, JPG, or GIF up to 5MB.
-                      </span>
-                    </div>
-                  )}
-                </MediaDropzone>
-                {canRemoveThumbnail && (
-                  <div className='mt-2 flex justify-end'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        void handleClearThumbnail()
-                      }}
-                      disabled={thumbnailPending || isUploadingThumbnail}
-                    >
-                      <X className='mr-2 h-4 w-4' />
-                      Remove
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value='link'>
-                <div className='space-y-2'>
-                  <Input
-                    placeholder='https://example.com/thumbnail.jpg'
-                    value={thumbnailLinkInput}
-                    onChange={event => setThumbnailLinkInput(event.target.value)}
-                    onBlur={() => {
-                      void handleThumbnailLinkCommit()
-                    }}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        void handleThumbnailLinkCommit()
-                      }
-                    }}
-                    disabled={thumbnailPending || isUploadingThumbnail}
-                  />
-                  <p className='text-xs text-muted-foreground'>
-                    Paste a direct image URL. JPG, PNG, or GIF files work best.
-                  </p>
-                </div>
-              </TabsContent>
-            </Tabs>
-            <div className='space-y-2'>
-              <h2 className='text-sm font-semibold text-foreground'>
-                Course description
-              </h2>
-              <Textarea
-                value={courseDescription}
-                onChange={event => setCourseDescription(event.target.value)}
-                onBlur={() => {
-                  void handleDescriptionBlur()
-                }}
-                disabled={descriptionPending}
-                rows={4}
-              />
-              <p className='text-xs text-muted-foreground'>
-                Keep this concise—learners see it on the classroom landing view.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className='rounded-xl border border-border bg-card p-4 shadow-sm'>
           {selectedLesson ? (
             <LessonEditorView lesson={selectedLesson} />
           ) : (
@@ -560,6 +290,7 @@ export function CourseEditPageClient({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
