@@ -11,7 +11,8 @@ import {
   Globe,
   Loader2,
   Lock,
-  Users
+  Users,
+  ShieldCheck
 } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
@@ -34,7 +35,7 @@ type CourseVerificationState =
   | { status: 'error'; message: string }
 
 export function GroupAboutSection() {
-  const { group, owner, isOwner, memberCount, membership, currentUser } = useGroupContext()
+  const { group, owner, isOwner, memberCount, membership, currentUser, administrators } = useGroupContext()
   const { address } = useAccount()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const membershipAddress = useMemo(() => {
@@ -190,6 +191,12 @@ export function GroupAboutSection() {
       ? `${owner.walletAddress.slice(0, 6)}...${owner.walletAddress.slice(-4)}`
       : 'Unknown creator')
 
+  const isAdmin = useMemo(() => {
+    if (isOwner) return true
+    if (!currentUser) return false
+    return administrators?.some(a => a.user._id === currentUser._id) ?? false
+  }, [administrators, currentUser, isOwner])
+
   const membershipExpiryLabel = useMemo(() => {
     if (membership.status !== 'active') return null
     if (!passExpiryMs) {
@@ -301,21 +308,28 @@ export function GroupAboutSection() {
               </span>
               By {creatorName}
             </span>
-            {membershipExpiryLabel && (
+            {isAdmin ? (
               <span className='inline-flex items-center gap-2'>
-                <Calendar className='h-4 w-4' />
-                Pass expires {membershipExpiryLabel}
-                {tokenLink && (
-                  <a
-                    href={tokenLink}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='ml-2 underline hover:no-underline'
-                  >
-                    View on Basescan
-                  </a>
-                )}
+                <ShieldCheck className='h-4 w-4' />
+                {isOwner ? 'Owner access' : 'Admin access'}
               </span>
+            ) : (
+              membershipExpiryLabel && (
+                <span className='inline-flex items-center gap-2'>
+                  <Calendar className='h-4 w-4' />
+                  Pass expires {membershipExpiryLabel}
+                  {tokenLink && (
+                    <a
+                      href={tokenLink}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='ml-2 underline hover:no-underline'
+                    >
+                      View on Basescan
+                    </a>
+                  )}
+                </span>
+              )
             )}
           </div>
 
