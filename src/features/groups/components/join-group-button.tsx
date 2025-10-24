@@ -88,19 +88,30 @@ export function JoinGroupButton() {
       toast.error('USDC contract address not configured.')
       return
     }
-    if (requiresPayment && !marketplaceAddress) {
+    const candidateMarketplaceAddress = marketplaceAddress ?? undefined
+    const candidateCourseId = membershipCourseId ?? undefined
+    if (requiresPayment && !candidateMarketplaceAddress) {
       toast.error('Marketplace contract address not configured.')
+      return
+    }
+    if (requiresPayment && !candidateCourseId) {
+      toast.error('Membership course configuration missing. Contact the group owner.')
+      return
+    }
+    if (requiresPayment && !membershipService) {
+      toast.error('Membership contract address not configured.')
       return
     }
 
     try {
       setIsSubmitting(true)
 
-      if (requiresPayment && membershipService && membershipCourseId && address) {
+      if (requiresPayment && membershipService && candidateCourseId && address) {
+        const courseIdStrict = candidateCourseId
         try {
           const [active, state] = await Promise.all([
-            membershipService.isPassActive(membershipCourseId, address as Address),
-            membershipService.getPassState(membershipCourseId, address as Address)
+            membershipService.isPassActive(courseIdStrict, address as Address),
+            membershipService.getPassState(courseIdStrict, address as Address)
           ])
 
           if (active) {
@@ -124,15 +135,8 @@ export function JoinGroupButton() {
       }
 
       if (requiresPayment && !skipPayment) {
-        if (!marketplaceAddress) {
-          toast.error('Marketplace contract address not configured.')
-          return
-        }
-        if (!membershipCourseId) {
-          toast.error('Membership course id missing. Contact the group owner.')
-          return
-        }
-
+        const marketplaceAddressStrict = candidateMarketplaceAddress as `0x${string}`
+        const courseIdStrict = candidateCourseId as bigint
         const amount = parseUnits(price.toString(), 6)
         const balance = (await publicClient.readContract({
           address: usdcAddress!,
@@ -150,7 +154,7 @@ export function JoinGroupButton() {
           address: usdcAddress!,
           abi: erc20Abi,
           functionName: 'allowance',
-          args: [address, marketplaceAddress]
+          args: [address, marketplaceAddressStrict]
         })) as bigint
 
         if (allowance < amount) {
@@ -158,31 +162,34 @@ export function JoinGroupButton() {
             address: usdcAddress!,
             abi: erc20Abi,
             functionName: 'approve',
-            args: [marketplaceAddress, maxUint256]
+            args: [marketplaceAddressStrict, maxUint256]
           })
           await publicClient.waitForTransactionReceipt({ hash: approvalHash })
         }
 
         const hash = await writeContractAsync({
-          address: marketplaceAddress,
+          address: marketplaceAddressStrict,
           abi: membershipMarketplaceAbi,
           functionName: 'purchasePrimary',
-          args: [membershipCourseId, amount]
+          args: [courseIdStrict, amount]
         })
 
         txHash = hash
         await publicClient.waitForTransactionReceipt({ hash })
 
-        if (membershipService) {
-          try {
-            const state = await membershipService.getPassState(
-              membershipCourseId,
-              address as Address
-            )
-            passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
-          } catch (error) {
-            console.error('Failed to resolve pass expiry after purchase', error)
+        try {
+          const state = await membershipService!.getPassState(courseIdStrict, address as Address)
+          passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
+          const hasPassNow = await membershipService!.isPassActive(courseIdStrict, address as Address)
+          if (!hasPassNow) {
+            throw new Error('Membership pass not detected after purchase.')
           }
+        } catch (error) {
+          console.error('Failed to verify membership pass after purchase', error)
+          toast.error(
+            'Payment succeeded, but the membership pass could not be confirmed. Please try again or contact support.'
+          )
+          return
         }
       }
 
