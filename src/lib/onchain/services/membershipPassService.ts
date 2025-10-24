@@ -134,7 +134,7 @@ export class MembershipPassService extends OnchainService {
 
   async balanceOf(account: Address, courseId: bigint) {
     const result = (await this.publicClient.readContract({
-      abi: membershipPass1155Abi as any,
+      abi: membershipPass1155Abi,
       address: this.address,
       functionName: 'balanceOf',
       args: [account, courseId]
