@@ -125,11 +125,19 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
 
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(initialThumbnailPreview)
   const [thumbnailTab, setThumbnailTab] = useState<'upload' | 'link'>(
-    initialThumbnailSource && isStorageReference(initialThumbnailSource) ? 'upload' : 'link'
+    initialThumbnailSource
+      ? isStorageReference(initialThumbnailSource)
+        ? 'upload'
+        : 'link'
+      : 'upload'
   )
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(initialGalleryItems)
   const [galleryTab, setGalleryTab] = useState<'upload' | 'links'>(
-    initialGalleryItems.some(item => isStorageReference(item.source)) ? 'upload' : 'links'
+    initialGalleryItems.length === 0
+      ? 'upload'
+      : initialGalleryItems.some(item => isStorageReference(item.source))
+        ? 'upload'
+        : 'links'
   )
 
   useEffect(() => {
@@ -155,7 +163,11 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
     )
     setThumbnailPreview(nextThumbnailPreview)
     setThumbnailTab(
-      nextThumbnailSource && isStorageReference(nextThumbnailSource) ? 'upload' : 'link'
+      nextThumbnailSource
+        ? isStorageReference(nextThumbnailSource)
+          ? 'upload'
+          : 'link'
+        : 'upload'
     )
 
     const nextGalleryItems: GalleryItem[] = []
@@ -187,7 +199,7 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
         [] as PathValue<FormValues, Path<FormValues>>,
         { shouldDirty: false }
       )
-      setGalleryTab('links')
+      setGalleryTab('upload')
     }
   }, [form, galleryPath, initialMedia, thumbnailPath])
 
