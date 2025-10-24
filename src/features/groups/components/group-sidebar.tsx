@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 
-import { CreditCard, Globe, Lock, Tag, Users } from 'lucide-react'
+import { Check, Copy, CreditCard, Globe, Lock, Tag, Users } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { useAppRouter } from '@/hooks/use-app-router'
@@ -43,6 +44,7 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
       ? memberCount
       : group.memberNumber ?? 0
   const [origin, setOrigin] = useState('')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -59,6 +61,17 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
     }
 
     router.push(`/${group._id}/edit`)
+  }
+
+  const handleCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(groupUrl)
+      setCopied(true)
+      toast.success('Link copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      toast.error('Failed to copy link')
+    }
   }
 
   const privacy =
@@ -92,11 +105,31 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
         </div>
       )}
 
-      <div className='space-y-2'>
+      <div className='space-y-3'>
         <h2 className='text-2xl font-bold text-foreground'>{group.name}</h2>
-        <p className='text-sm text-muted-foreground'>
-          {groupUrl}
-        </p>
+
+        {/* Modern URL display with copy button */}
+        <div className='group relative flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 p-3 transition-colors hover:bg-muted/50'>
+          <div className='flex-1 overflow-hidden'>
+            <p className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+              Group Link
+            </p>
+            <p className='truncate text-sm font-mono text-foreground'>
+              {groupUrl}
+            </p>
+          </div>
+          <button
+            onClick={handleCopyUrl}
+            className='flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-all hover:bg-primary/20 hover:scale-105 active:scale-95'
+            title='Copy link'
+          >
+            {copied ? (
+              <Check className='h-4 w-4' />
+            ) : (
+              <Copy className='h-4 w-4' />
+            )}
+          </button>
+        </div>
       </div>
 
       <p className='text-sm leading-relaxed text-foreground'>
