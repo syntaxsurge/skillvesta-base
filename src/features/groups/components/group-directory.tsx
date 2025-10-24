@@ -74,48 +74,60 @@ export function GroupDirectory() {
   }
 
   return (
-    <div className='space-y-8'>
-      <div className='space-y-4 text-center'>
-        <h1 className='text-3xl font-semibold text-foreground'>
+    <div className='mx-auto max-w-7xl space-y-8 py-12'>
+      <div className='space-y-6 text-center'>
+        <h1 className='text-5xl font-bold text-foreground'>
           Discover communities
         </h1>
-        <p className='text-sm text-muted-foreground'>
-          Browse active groups, compare member benefits, and join the ones that resonate with you.
+        <p className='text-base text-muted-foreground'>
+          or{' '}
+          <button
+            onClick={() => router.push('/create')}
+            className='font-medium text-accent underline-offset-4 hover:underline'
+          >
+            create your own
+          </button>
         </p>
-        <div className='mx-auto max-w-xl'>
+        <div className='mx-auto max-w-2xl'>
           <Input
             placeholder='Search for anything'
             value={search}
             onChange={event => setSearch(event.target.value)}
-            className='h-11'
+            className='h-12 text-base'
           />
         </div>
       </div>
 
       <div className='flex flex-wrap items-center justify-center gap-2'>
-        <Button
+        <button
           type='button'
-          variant={activeTag === 'all' ? 'default' : 'outline'}
           onClick={() => setActiveTag('all')}
-          className='rounded-full px-4 py-1 text-sm'
+          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+            activeTag === 'all'
+              ? 'bg-foreground text-background'
+              : 'bg-secondary text-foreground hover:bg-secondary/80'
+          }`}
         >
           All
-        </Button>
+        </button>
         {allTags.map(tag => (
-          <Button
+          <button
             key={tag}
             type='button'
-            variant={activeTag === tag ? 'default' : 'outline'}
             onClick={() => setActiveTag(tag)}
-            className='rounded-full px-4 py-1 text-sm capitalize'
+            className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition ${
+              activeTag === tag
+                ? 'bg-foreground text-background'
+                : 'bg-secondary text-foreground hover:bg-secondary/80'
+            }`}
           >
             {tag}
-          </Button>
+          </button>
         ))}
       </div>
 
       {filteredEntries.length ? (
-        <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
+        <div className='grid gap-5 sm:grid-cols-2 lg:grid-cols-3'>
           {filteredEntries.map(entry => (
             <GroupCard
               key={entry.group._id}
@@ -126,8 +138,8 @@ export function GroupDirectory() {
           ))}
         </div>
       ) : (
-        <div className='rounded-2xl border border-dashed border-border bg-card/60 py-16 text-center text-sm text-muted-foreground'>
-          No groups match your filters yet. Try another tag or clear your search.
+        <div className='rounded-xl border border-border bg-card py-16 text-center text-sm text-muted-foreground'>
+          No communities match your filters. Try another tag or clear your search.
         </div>
       )}
     </div>

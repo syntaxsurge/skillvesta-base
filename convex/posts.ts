@@ -78,9 +78,24 @@ export const create = mutation({
   handler: async (ctx, { title, content, groupId, address }) => {
     const user = await requireUserByWallet(ctx, address)
 
+    const trimmedTitle = title.trim()
+    const trimmedContent = content.trim()
+
+    if (!trimmedTitle) {
+      throw new Error('Title is required.')
+    }
+
+    if (!trimmedContent) {
+      throw new Error('Content is required.')
+    }
+
+    if (trimmedContent.length > 40000) {
+      throw new Error('Content is too long!')
+    }
+
     const postId = await ctx.db.insert('posts', {
-      title,
-      content,
+      title: trimmedTitle,
+      content: trimmedContent,
       authorId: user._id,
       groupId
     })
@@ -133,7 +148,12 @@ export const remove = mutation({
 })
 
 export const updateContent = mutation({
-  args: { id: v.id('posts'), content: v.string(), address: v.string() },
+  args: {
+    id: v.id('posts'),
+    title: v.string(),
+    content: v.string(),
+    address: v.string()
+  },
   handler: async (ctx, args) => {
     const user = await requireUserByWallet(ctx, args.address)
     const post = await ctx.db.get(args.id)
@@ -146,7 +166,12 @@ export const updateContent = mutation({
       throw new Error('Only the author can update this post.')
     }
 
+    const title = args.title.trim()
     const content = args.content.trim()
+
+    if (!title) {
+      throw new Error('Title is required')
+    }
 
     if (!content) {
       throw new Error('Content is required')
@@ -157,7 +182,8 @@ export const updateContent = mutation({
     }
 
     await ctx.db.patch(args.id, {
-      content: args.content
+      title,
+      content
     })
   }
 })

@@ -40,15 +40,15 @@ export function CourseGrid({ groupId, canCreate = false }: CourseGridProps) {
   }
 
   return (
-    <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
+    <div className='grid gap-5 sm:grid-cols-2 lg:grid-cols-3'>
       {canCreate && (
         <button
           type='button'
           onClick={handleCreateCourse}
-          className='flex h-full min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/40 text-muted-foreground transition hover:border-primary hover:text-primary'
+          className='flex h-full min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card text-muted-foreground transition hover:bg-secondary/50'
         >
           <Plus className='h-8 w-8' />
-          <span className='mt-2 text-sm font-medium'>Create a course</span>
+          <span className='mt-2 text-sm font-semibold'>Create a course</span>
         </button>
       )}
 

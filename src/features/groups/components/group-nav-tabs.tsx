@@ -24,8 +24,8 @@ export function GroupNavTabs() {
   }
 
   return (
-    <nav className='border-b border-border bg-muted/40'>
-      <ul className='mx-auto flex max-w-6xl items-center gap-2 px-6'>
+    <nav className='border-b border-border bg-card'>
+      <ul className='mx-auto flex max-w-6xl items-center gap-1 px-6'>
         {TABS.filter(tab => access[tab.key]).map(tab => {
           const href = `/${groupId}${tab.suffix}`
           const isActive =
@@ -39,10 +39,10 @@ export function GroupNavTabs() {
               <Link
                 href={href}
                 className={cn(
-                  'inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition',
+                  'relative inline-flex items-center border-b-2 px-4 py-3 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-background text-foreground shadow'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
                 )}
               >
                 {tab.label}

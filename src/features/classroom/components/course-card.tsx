@@ -21,8 +21,11 @@ export function CourseCard({ groupId, course }: CourseCardProps) {
   )
 
   return (
-    <article className='flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-1 hover:shadow-lg'>
-      <div className='relative h-40 bg-muted'>
+    <article
+      className='flex h-full cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition hover:shadow-md'
+      onClick={() => router.push(`/${groupId}/classroom/${course._id}`)}
+    >
+      <div className='relative aspect-video bg-muted'>
         {thumbnailUrl ? (
           <Image
             src={thumbnailUrl}
@@ -35,29 +38,25 @@ export function CourseCard({ groupId, course }: CourseCardProps) {
           <Skeleton className='h-full w-full rounded-none' />
         ) : (
           <div className='flex h-full w-full items-center justify-center'>
-            <BookOpen className='h-10 w-10 text-muted-foreground' />
+            <BookOpen className='h-12 w-12 text-muted-foreground' />
           </div>
         )}
       </div>
 
-      <div className='flex flex-1 flex-col gap-3 p-5'>
-        <div>
-          <h3 className='text-lg font-semibold text-foreground'>
-            {course.title}
-          </h3>
-          <p className='mt-1 line-clamp-3 text-sm text-muted-foreground'>
-            {course.description}
-          </p>
-        </div>
+      <div className='flex flex-1 flex-col p-5'>
+        <h3 className='text-lg font-bold text-foreground'>
+          {course.title}
+        </h3>
+        <p className='mt-2 line-clamp-2 text-sm text-muted-foreground'>
+          {course.description || 'No description provided'}
+        </p>
 
-        <button
-          type='button'
-          onClick={() => router.push(`/${groupId}/classroom/${course._id}`)}
-          className='mt-auto inline-flex items-center gap-2 self-start text-sm font-medium text-primary transition hover:underline'
-        >
-          Open course
-          <ChevronRight className='h-4 w-4' />
-        </button>
+        <div className='mt-auto pt-4'>
+          <div className='h-2 w-full overflow-hidden rounded-full bg-secondary'>
+            <div className='h-full w-0 bg-primary' />
+          </div>
+          <p className='mt-2 text-xs font-medium text-muted-foreground'>0%</p>
+        </div>
       </div>
     </article>
   )

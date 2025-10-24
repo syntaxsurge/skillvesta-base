@@ -63,80 +63,54 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
   )
 
   return (
-    <aside className='w-full max-w-sm space-y-5 rounded-2xl border border-border bg-card p-6'>
-      <div className='space-y-4'>
-        {group.thumbnailUrl ? (
-          <div className='relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border'>
-            <Image
-              src={group.thumbnailUrl}
-              alt={`${group.name} thumbnail`}
-              fill
-              sizes='(max-width: 768px) 100vw, 320px'
-              className='object-cover'
-            />
-          </div>
-        ) : (
-          <div className='flex aspect-[4/3] w-full items-center justify-center rounded-xl border border-dashed border-border bg-muted text-muted-foreground'>
-            <span className='text-xs uppercase tracking-wide'>
-              No thumbnail
-            </span>
-          </div>
-        )}
-
-        <div>
-          <h2 className='text-2xl font-semibold text-foreground'>
-            {group.name}
-          </h2>
-          <p className='text-sm text-muted-foreground'>
-            By{' '}
-            {formatCreatorName({
-              displayName: owner?.displayName ?? null,
-              basename: owner?.basename ?? null,
-              walletAddress: owner?.walletAddress ?? null
-            })}
-          </p>
+    <aside className='w-full max-w-sm space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm'>
+      {group.thumbnailUrl ? (
+        <div className='relative aspect-video w-full overflow-hidden rounded-lg'>
+          <Image
+            src={group.thumbnailUrl}
+            alt={`${group.name} thumbnail`}
+            fill
+            sizes='(max-width: 768px) 100vw, 320px'
+            className='object-cover'
+          />
         </div>
+      ) : (
+        <div className='flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-muted-foreground'>
+          <span className='text-xs font-medium uppercase tracking-wide'>
+            No thumbnail
+          </span>
+        </div>
+      )}
+
+      <div className='space-y-2'>
+        <h2 className='text-2xl font-bold text-foreground'>{group.name}</h2>
+        <p className='text-sm text-muted-foreground'>
+          skool.com/{group._id}
+        </p>
       </div>
 
-      <p className='text-sm text-muted-foreground'>
+      <p className='text-sm leading-relaxed text-foreground'>
         {group.shortDescription ?? 'No summary provided yet.'}
       </p>
 
-      <div className='grid gap-3 rounded-xl bg-muted/60 p-4 text-sm'>
-        <div className='flex items-center gap-3'>
-          <privacy.icon className='h-4 w-4 text-muted-foreground' />
-          <span>{privacy.label}</span>
+      <div className='grid grid-cols-3 gap-4 border-t border-border pt-4 text-center'>
+        <div>
+          <div className='text-xl font-bold text-foreground'>{totalMembers}</div>
+          <div className='text-xs text-muted-foreground'>Members</div>
         </div>
-        <div className='flex items-center gap-3'>
-          <Users className='h-4 w-4 text-muted-foreground' />
-          <span>
-            {totalMembers} {formatMemberLabel(totalMembers)}
-          </span>
+        <div>
+          <div className='text-xl font-bold text-foreground'>0</div>
+          <div className='text-xs text-muted-foreground'>Online</div>
         </div>
-        <div className='flex items-center gap-3'>
-          <CreditCard className='h-4 w-4 text-muted-foreground' />
-          <span>{priceLabel}</span>
+        <div>
+          <div className='text-xl font-bold text-foreground'>1</div>
+          <div className='text-xs text-muted-foreground'>Admins</div>
         </div>
-        {group.tags && group.tags.length > 0 && (
-          <div className='flex items-start gap-3'>
-            <Tag className='mt-0.5 h-4 w-4 text-muted-foreground' />
-            <div className='flex flex-wrap gap-2'>
-              {group.tags.map(tag => (
-                <span
-                  key={tag}
-                  className='rounded-full bg-background px-2 py-1 text-xs font-medium text-muted-foreground'
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {isOwner ? (
         <Button
-          className='w-full'
+          className='w-full uppercase'
           variant='secondary'
           onClick={handleEditClick}
         >
@@ -145,6 +119,10 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
       ) : (
         <JoinGroupButton />
       )}
+
+      <div className='pt-2 text-center text-xs text-muted-foreground'>
+        Powered by <span className='font-semibold'>skillvesta</span>
+      </div>
     </aside>
   )
 }

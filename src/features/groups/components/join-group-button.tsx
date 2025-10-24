@@ -240,7 +240,7 @@ export function JoinGroupButton() {
 
   return (
     <Button
-      className='w-full'
+      className='w-full uppercase'
       disabled={isSubmitting}
       onClick={handleJoin}
     >

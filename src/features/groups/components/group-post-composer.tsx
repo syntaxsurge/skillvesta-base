@@ -56,17 +56,17 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
       <DialogTrigger asChild>
         <button
           type='button'
-          className='w-full rounded-xl border border-dashed border-border bg-card px-6 py-4 text-left text-sm font-semibold text-muted-foreground transition hover:border-primary hover:text-primary'
+          className='w-full rounded-lg border border-border bg-card px-5 py-3.5 text-left text-sm text-muted-foreground transition hover:bg-secondary/50'
         >
-          Share something with your group…
+          Write something
         </button>
       </DialogTrigger>
 
-      <DialogContent>
+      <DialogContent className='sm:max-w-2xl'>
         <DialogHeader>
           <DialogTitle>Create a post</DialogTitle>
           <DialogDescription>
-            Spark a conversation with your community members.
+            Share your thoughts with the community.
           </DialogDescription>
         </DialogHeader>
 
@@ -81,7 +81,7 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
             placeholder='What would you like to share?'
             value={content}
             onChange={event => setContent(event.target.value)}
-            rows={5}
+            rows={6}
           />
         </div>
 
@@ -93,7 +93,7 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
           </DialogClose>
           <DialogClose asChild>
             <Button type='button' onClick={handleCreate} disabled={!canSubmit}>
-              Publish post
+              Publish
             </Button>
           </DialogClose>
         </div>

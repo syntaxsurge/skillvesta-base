@@ -14,35 +14,37 @@ export function AppNavbar() {
   const isMemberships = pathname?.startsWith('/memberships')
 
   return (
-    <header className='relative z-40 border-b border-border bg-background/80 backdrop-blur'>
-      <div className='mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-6'>
-        <div className='flex items-center gap-3'>
+    <header className='sticky top-0 z-40 border-b border-border bg-card'>
+      <div className='mx-auto flex h-16 w-full items-center justify-between gap-6 px-6'>
+        <div className='flex items-center gap-6'>
           <Link href='/' className='hidden sm:block'>
-            <Logo width={140} height={32} className='h-10 w-auto' />
+            <Logo width={140} height={32} className='h-8 w-auto' />
           </Link>
           <GroupSwitcher />
-          <Link
-            href='/marketplace'
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              isMarketplace
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Marketplace
-          </Link>
-          <Link
-            href='/memberships'
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              isMemberships
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            My memberships
-          </Link>
+          <nav className='flex items-center gap-2'>
+            <Link
+              href='/marketplace'
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                isMarketplace
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Marketplace
+            </Link>
+            <Link
+              href='/memberships'
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                isMemberships
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              My memberships
+            </Link>
+          </nav>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-3'>
           <ThemeToggle />
           <WalletMenu />
         </div>

@@ -19,7 +19,6 @@ import { useAccount, usePublicClient } from 'wagmi'
 
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
-import { GroupSidebar } from './group-sidebar'
 import { useGroupContext } from '../context/group-context'
 import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/membership'
 import { formatGroupPriceLabel } from '../utils/price'
@@ -273,93 +272,62 @@ export function GroupAboutSection() {
   }, [courseVerification, explorerName, explorerUrl])
 
   return (
-    <div className='grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]'>
-      <div className='space-y-6 rounded-2xl border border-border bg-card p-6'>
-        <div className='space-y-6'>
-          <div className='space-y-2'>
-            <h1 className='text-3xl font-semibold text-foreground'>
-              {group.name}
-            </h1>
-            <p className='text-base text-muted-foreground'>
-              {group.shortDescription ?? 'Tell your members what to expect from this community.'}
-            </p>
-          </div>
-
-          <GroupMediaCarousel
-            sources={mediaSources}
-            fallbackImage={group.thumbnailUrl}
-          />
-
-          <div className='flex flex-wrap gap-4 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground'>
-            <span className='inline-flex items-center gap-2'>
-              <privacy.icon className='h-4 w-4' />
-              {privacy.label}
-            </span>
-            <span className='inline-flex items-center gap-2'>
-              <Users className='h-4 w-4' />
-              {totalMembers} {totalMembers === 1 ? 'member' : 'members'}
-            </span>
-            <span className='inline-flex items-center gap-2'>
-              <CreditCard className='h-4 w-4' />
-              {priceLabel}
-            </span>
-            <span className='inline-flex items-center gap-2'>
-              <span className='flex h-6 w-6 items-center justify-center rounded-full bg-background font-semibold'>
-                {creatorName.slice(0, 1).toUpperCase()}
-              </span>
-              By {creatorName}
-            </span>
-            {isAdmin ? (
-              <span className='inline-flex items-center gap-2'>
-                <ShieldCheck className='h-4 w-4' />
-                {isOwner ? 'Owner access' : 'Admin access'}
-              </span>
-            ) : (
-              membershipExpiryLabel && (
-                <span className='inline-flex items-center gap-2'>
-                  <Calendar className='h-4 w-4' />
-                  Pass expires {membershipExpiryLabel}
-                </span>
-              )
-            )}
-          </div>
-
-          {group.tags && group.tags.length > 0 && (
-            <div className='flex flex-wrap gap-2'>
-              {group.tags.map(tag => (
-                <span
-                  key={tag}
-                  className='rounded-full border border-border px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground'
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className='space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-sm'>
-            <div className='flex flex-wrap items-center justify-between gap-2'>
-              <div>
-                <p className='text-xs font-medium uppercase text-muted-foreground'>
-                  Membership course ID
-                </p>
-                <p className='mt-1 font-mono text-base text-foreground'>
-                  {membershipCourseIdLabel}
-                </p>
-              </div>
-            </div>
-            <div className='pt-1 text-xs text-muted-foreground'>{verificationNode}</div>
-          </div>
-        </div>
-
-        <GroupDescriptionEditor
-          editable={isOwner}
-          groupId={group._id}
-          initialContent={group.description}
+    <div className='space-y-8'>
+      <div className='space-y-4'>
+        <h1 className='text-4xl font-bold text-foreground'>{group.name}</h1>
+        <GroupMediaCarousel
+          sources={mediaSources}
+          fallbackImage={group.thumbnailUrl}
         />
       </div>
 
-      <GroupSidebar />
+      {(group.price ?? 0) > 0 && (
+        <div className='flex items-center gap-4 rounded-lg border border-border bg-card px-5 py-3'>
+          <div className='flex items-center gap-2 text-sm text-foreground'>
+            <Globe className='h-4 w-4 text-muted-foreground' />
+            <span className='font-medium'>{privacy.label}</span>
+          </div>
+          <div className='h-4 w-px bg-border' />
+          <div className='flex items-center gap-2 text-sm text-foreground'>
+            <Users className='h-4 w-4 text-muted-foreground' />
+            <span className='font-medium'>{totalMembers} members</span>
+          </div>
+          <div className='h-4 w-px bg-border' />
+          <div className='flex items-center gap-2 text-sm text-foreground'>
+            <CreditCard className='h-4 w-4 text-muted-foreground' />
+            <span className='font-medium'>{priceLabel}</span>
+          </div>
+        </div>
+      )}
+
+      {membershipExpiryLabel && membership.status === 'active' && (
+        <div className='rounded-lg border border-border bg-card px-5 py-3 text-sm text-muted-foreground'>
+          <Calendar className='mr-2 inline h-4 w-4' />
+          Your pass expires {membershipExpiryLabel}
+        </div>
+      )}
+
+      <GroupDescriptionEditor
+        editable={isOwner}
+        groupId={group._id}
+        initialContent={group.description}
+      />
+
+      {membershipCourseId && (
+        <div className='rounded-lg border border-border bg-card p-5'>
+          <div className='space-y-3'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                Membership course ID
+              </p>
+              <p className='mt-1 font-mono text-sm text-foreground'>
+                {membershipCourseIdLabel}
+              </p>
+            </div>
+            <div className='text-sm'>{verificationNode}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
