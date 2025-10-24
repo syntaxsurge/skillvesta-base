@@ -695,11 +695,6 @@ function Hero({
           Buy new passes, discover secondary listings, or renew existing memberships.
           All transactions are secured with cooldown-aware transfers on Base.
         </p>
-        <div className='grid gap-4 pt-4 sm:grid-cols-3'>
-          <HeroStat label='Collections' value='3+' />
-          <HeroStat label='Active Listings' value={String(listingCount)} />
-          <HeroStat label='Network' value='Base' />
-        </div>
         <div className='flex flex-wrap items-center gap-4 pt-4'>
           <Button
             onClick={onListPass}
@@ -716,15 +711,6 @@ function Hero({
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function HeroStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='rounded-xl border border-white/20 bg-white/5 px-5 py-3 backdrop-blur-sm'>
-      <p className='text-xs font-medium uppercase tracking-wider text-white/60'>{label}</p>
-      <p className='mt-1 text-2xl font-bold text-white'>{value}</p>
     </div>
   )
 }
@@ -785,60 +771,111 @@ export function OwnedPassesCard({
   onList: (course: MarketplaceCourse) => void
 }) {
   return (
-    <div className='space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm'>
-      <div>
-        <h3 className='text-lg font-semibold text-foreground'>
-          My memberships
-        </h3>
-        <p className='text-sm text-muted-foreground'>
-          Active passes linked to your wallet. Cooldown timing shows when
-          secondary listing unlocks.
-        </p>
-      </div>
-      <div className='space-y-3'>
-        {passes.map(pass => {
-          const userState = pass.user
-          const transferStatus = userState?.canTransfer
-            ? 'Ready to transfer'
-            : userState
-              ? userState.transferAvailableAt === 0n
-                ? 'Cooldown settling'
-                : `Cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}`
-              : 'Not available'
-          const expiryStatus = userState
-            ? userState.expiresAt === 0n
-              ? 'No expiry scheduled'
-              : formatTimestampRelative(userState.expiresAt)
-            : '—'
+    <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+      {passes.map(pass => {
+        const userState = pass.user
+        const transferStatus = userState?.canTransfer
+          ? 'Ready'
+          : userState
+            ? userState.transferAvailableAt === 0n
+              ? 'Cooldown'
+              : 'Cooldown'
+            : 'Not available'
+        const transferStatusFull = userState?.canTransfer
+          ? 'Ready to transfer'
+          : userState
+            ? userState.transferAvailableAt === 0n
+              ? 'Cooldown settling'
+              : `Available ${formatTimestampRelative(userState.transferAvailableAt)}`
+            : 'Not available'
+        const expiryStatus = userState
+          ? userState.expiresAt === 0n
+            ? 'No expiry'
+            : formatTimestampRelative(userState.expiresAt)
+          : '—'
+        const durationLabel = formatDurationShort(pass.stats.duration)
 
-          return (
+        return (
+          <div
+            key={pass.catalog.courseId.toString()}
+            className='group flex flex-col overflow-hidden rounded-xl border border-border/50 bg-card/80 shadow-lg backdrop-blur-sm transition-all hover:shadow-xl'
+          >
+            {/* Gradient header with overlay */}
             <div
-              key={pass.catalog.courseId.toString()}
-              className='flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/40 bg-muted/30 p-4'
+              className={`relative h-32 bg-gradient-to-br ${pass.catalog.coverGradient}`}
             >
-              <div className='space-y-1'>
-                <p className='text-sm font-semibold text-foreground'>
-                  {pass.catalog.title}
-                </p>
-                <p className='text-xs text-muted-foreground'>
-                  Membership #{pass.catalog.courseId.toString()}
-                </p>
-                <p className='text-xs text-muted-foreground'>
-                  Expires {expiryStatus} • Transfer {transferStatus}
-                </p>
+              <div className='absolute inset-0 bg-gradient-to-t from-black/40 to-transparent' />
+
+              {/* Status badge */}
+              <div className='absolute right-3 top-3'>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                    userState?.canTransfer
+                      ? 'bg-primary/90 text-primary-foreground'
+                      : 'bg-destructive/90 text-destructive-foreground'
+                  }`}
+                >
+                  {transferStatus}
+                </span>
               </div>
+
+              {/* Title overlay */}
+              <div className='absolute bottom-3 left-3 right-3'>
+                <p className='text-xs font-semibold uppercase tracking-wider text-white/80'>
+                  #{pass.catalog.courseId.toString()}
+                </p>
+                <h3 className='mt-0.5 text-xl font-bold text-white drop-shadow-lg'>
+                  {pass.catalog.title}
+                </h3>
+              </div>
+            </div>
+
+            {/* Card content */}
+            <div className='flex flex-1 flex-col gap-4 p-5'>
+              {/* Info grid */}
+              <dl className='grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3 text-xs'>
+                <div>
+                  <dt className='text-muted-foreground'>Expires</dt>
+                  <dd className='mt-0.5 font-semibold text-foreground'>
+                    {expiryStatus}
+                  </dd>
+                </div>
+                <div>
+                  <dt className='text-muted-foreground'>Transfer</dt>
+                  <dd className='mt-0.5 font-semibold text-foreground'>
+                    {transferStatusFull}
+                  </dd>
+                </div>
+                <div className='col-span-2'>
+                  <dt className='text-muted-foreground'>Duration</dt>
+                  <dd className='mt-0.5 font-semibold text-foreground'>
+                    {durationLabel}
+                  </dd>
+                </div>
+              </dl>
+
+              {/* Cooldown message */}
+              {!userState?.canTransfer && userState && (
+                <div className='rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'>
+                  {userState.transferAvailableAt === 0n
+                    ? 'Transfer cooldown is still settling. Try again shortly.'
+                    : `Transfer cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}.`}
+                </div>
+              )}
+
+              {/* Action button */}
               <Button
-                size='sm'
-                variant='outline'
+                className='mt-auto w-full'
+                variant={userState?.canTransfer ? 'default' : 'outline'}
                 onClick={() => onList(pass)}
-                title={transferStatus}
+                title={transferStatusFull}
               >
                 List pass
               </Button>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

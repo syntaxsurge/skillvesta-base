@@ -1,10 +1,24 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 
-import { CreditCard, Globe, Lock, Tag, Users } from 'lucide-react'
+import { useMutation } from 'convex/react'
+import { Check, Copy, Globe, Lock } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
+import { api } from '@/convex/_generated/api'
 import { useAppRouter } from '@/hooks/use-app-router'
 
 import { useGroupContext } from '../context/group-context'
@@ -36,11 +50,52 @@ function formatCreatorName({
 
 export function GroupSidebar({ onEdit }: GroupSidebarProps) {
   const router = useAppRouter()
-  const { group, owner, isOwner, memberCount } = useGroupContext()
+  const { group, isOwner, memberCount, currentUser } = useGroupContext()
+  const removeGroup = useMutation(api.groups.remove)
   const totalMembers =
     typeof memberCount === 'number'
       ? memberCount
       : group.memberNumber ?? 0
+  const [origin, setOrigin] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const copyResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin)
+    }
+
+    return () => {
+      if (copyResetTimeout.current) {
+        clearTimeout(copyResetTimeout.current)
+      }
+    }
+  }, [])
+
+  const groupUrl = origin ? `${origin}/${group._id}` : `/${group._id}`
+
+  const handleCopyUrl = async () => {
+    if (!groupUrl || typeof navigator === 'undefined' || !navigator.clipboard) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(groupUrl)
+      setCopied(true)
+
+      if (copyResetTimeout.current) {
+        clearTimeout(copyResetTimeout.current)
+      }
+
+      copyResetTimeout.current = setTimeout(() => {
+        setCopied(false)
+      }, 2000)
+    } catch {
+      // noop on clipboard failure; leaving silent to avoid UI jitter
+    }
+  }
 
   const handleEditClick = () => {
     if (onEdit) {
@@ -49,6 +104,39 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
     }
 
     router.push(`/${group._id}/edit`)
+  }
+
+  const handleDeleteGroup = async () => {
+    if (!isOwner) {
+      toast.error('Only the owner can delete this group.')
+      return
+    }
+
+    if (!currentUser?.walletAddress) {
+      toast.error('Connect your wallet to delete this group.')
+      return
+    }
+
+    setIsDeleting(true)
+
+    try {
+      await removeGroup({
+        groupId: group._id,
+        ownerAddress: currentUser.walletAddress
+      })
+      toast.success('Group deleted.')
+      setIsDeleteOpen(false)
+      router.replace('/groups')
+      router.refresh()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete group. Try again later.'
+      toast.error(message)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const privacy =
@@ -84,9 +172,28 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
 
       <div className='space-y-2'>
         <h2 className='text-2xl font-bold text-foreground'>{group.name}</h2>
-        <p className='text-sm text-muted-foreground'>
-          skool.com/{group._id}
-        </p>
+        <div className='flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2 shadow-inner'>
+          <div className='min-w-0 flex-1'>
+            <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>
+              Group URL
+            </p>
+            <p className='truncate text-sm font-medium text-foreground/90'>
+              {groupUrl}
+            </p>
+          </div>
+          <Button
+            type='button'
+            size='sm'
+            variant='secondary'
+            onClick={handleCopyUrl}
+            disabled={!groupUrl}
+            className='shrink-0 gap-2'
+            aria-label={copied ? 'Group URL copied' : 'Copy group URL to clipboard'}
+          >
+            {copied ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
       </div>
 
       <p className='text-sm leading-relaxed text-foreground'>
@@ -109,13 +216,63 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
       </div>
 
       {isOwner ? (
-        <Button
-          className='w-full uppercase'
-          variant='secondary'
-          onClick={handleEditClick}
-        >
-          Edit group details
-        </Button>
+        <div className='space-y-3'>
+          <Button
+            className='w-full uppercase'
+            variant='secondary'
+            onClick={handleEditClick}
+          >
+            Edit group details
+          </Button>
+
+          <Dialog
+            open={isDeleteOpen}
+            onOpenChange={open => {
+              if (isDeleting) return
+              setIsDeleteOpen(open)
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button
+                type='button'
+                variant='destructive'
+                className='w-full uppercase'
+                disabled={isDeleting}
+              >
+                Delete group
+              </Button>
+            </DialogTrigger>
+
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete this group?</DialogTitle>
+                <DialogDescription>
+                  This action permanently removes the group, its members,
+                  classroom courses, posts, and associated media references.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button
+                    variant='ghost'
+                    type='button'
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button
+                  type='button'
+                  variant='destructive'
+                  onClick={handleDeleteGroup}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete group'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       ) : (
         <JoinGroupButton />
       )}

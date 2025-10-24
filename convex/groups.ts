@@ -191,6 +191,23 @@ async function resolveGallery(
   )
 }
 
+function collectStorageReference(
+  target: Set<Id<'_storage'>>,
+  value: string | undefined | null
+) {
+  const trimmed = value?.trim()
+  if (!trimmed || !trimmed.startsWith(STORAGE_PREFIX)) {
+    return
+  }
+
+  const reference = trimmed.slice(STORAGE_PREFIX.length).trim()
+  if (!reference) {
+    return
+  }
+
+  target.add(reference as Id<'_storage'>)
+}
+
 function resolveVisibility(
   requested: VisibilityOption | undefined
 ): VisibilityOption {
@@ -786,6 +803,110 @@ export const updateDescription = mutation({
     await ctx.db.patch(args.id, {
       description: args.description
     })
+  }
+})
+
+export const remove = mutation({
+  args: {
+    groupId: v.id('groups'),
+    ownerAddress: v.string()
+  },
+  handler: async (ctx, { groupId, ownerAddress }) => {
+    const owner = await requireUserByWallet(ctx, ownerAddress)
+    const group = await ctx.db.get(groupId)
+
+    if (!group) {
+      throw new Error('Group not found.')
+    }
+
+    if (group.ownerId !== owner._id) {
+      throw new Error('Only the owner can delete this group.')
+    }
+
+    const storageIds = new Set<Id<'_storage'>>()
+    collectStorageReference(storageIds, group.thumbnailUrl)
+    collectStorageReference(storageIds, group.aboutUrl)
+    ;(group.galleryUrls ?? []).forEach(url =>
+      collectStorageReference(storageIds, url)
+    )
+
+    const administrators = await ctx.db
+      .query('groupAdministrators')
+      .withIndex('by_groupId', q => q.eq('groupId', groupId))
+      .collect()
+
+    await Promise.all(
+      administrators.map(entry => ctx.db.delete(entry._id))
+    )
+
+    const memberships = await ctx.db
+      .query('userGroups')
+      .withIndex('by_groupId', q => q.eq('groupId', groupId))
+      .collect()
+
+    await Promise.all(memberships.map(entry => ctx.db.delete(entry._id)))
+
+    const courses = await ctx.db
+      .query('courses')
+      .withIndex('by_groupId', q => q.eq('groupId', groupId))
+      .collect()
+
+    for (const course of courses) {
+      collectStorageReference(storageIds, course.thumbnailUrl)
+
+      const modules = await ctx.db
+        .query('modules')
+        .withIndex('by_courseId', q => q.eq('courseId', course._id))
+        .collect()
+
+      for (const module of modules) {
+        const lessons = await ctx.db
+          .query('lessons')
+          .withIndex('by_moduleId', q => q.eq('moduleId', module._id))
+          .collect()
+
+        await Promise.all(
+          lessons.map(lesson => ctx.db.delete(lesson._id))
+        )
+
+        await ctx.db.delete(module._id)
+      }
+
+      await ctx.db.delete(course._id)
+    }
+
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_groupId', q => q.eq('groupId', groupId))
+      .collect()
+
+    for (const post of posts) {
+      const comments = await ctx.db
+        .query('comments')
+        .withIndex('by_postId', q => q.eq('postId', post._id))
+        .collect()
+      await Promise.all(comments.map(comment => ctx.db.delete(comment._id)))
+
+      const likes = await ctx.db
+        .query('likes')
+        .withIndex('by_postId', q => q.eq('postId', post._id))
+        .collect()
+      await Promise.all(likes.map(like => ctx.db.delete(like._id)))
+
+      await ctx.db.delete(post._id)
+    }
+
+    await ctx.db.delete(groupId)
+
+    if (storageIds.size > 0) {
+      await Promise.all(
+        Array.from(storageIds).map(storageId =>
+          ctx.storage.delete(storageId).catch(() => undefined)
+        )
+      )
+    }
+
+    return { status: 'deleted' as const }
   }
 })
 
