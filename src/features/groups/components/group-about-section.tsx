@@ -37,6 +37,7 @@ export function GroupAboutSection() {
   const { group, owner, isOwner, memberCount, membership, currentUser, administrators } = useGroupContext()
   const { address } = useAccount()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
+  const isPaidGroup = (group.price ?? 0) > 0
   const membershipAddress = useMemo(() => {
     const value = MEMBERSHIP_CONTRACT_ADDRESS?.trim()
     return value ? (value as `0x${string}`) : null
@@ -327,7 +328,7 @@ export function GroupAboutSection() {
         initialContent={group.description}
       />
 
-      {membershipCourseId && (
+      {isPaidGroup && membershipCourseId && (
         <div className='rounded-lg border border-border bg-card p-5'>
           <div className='space-y-3'>
             <div>
