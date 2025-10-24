@@ -48,3 +48,11 @@ export function normalizePassExpiry(
   }
   return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
 }
+
+export function generateMembershipCourseId(): string {
+  const timestamp = Date.now().toString()
+  const random = Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, '0')
+  return `${timestamp}${random}`
+}

@@ -62,3 +62,23 @@ export const REVENUE_SPLIT_ROUTER_ADDRESS =
 
 export const SUBSCRIPTION_PRICE_USDC =
   process.env.NEXT_PUBLIC_SUBSCRIPTION_PRICE_USDC ?? '99'
+
+const DEFAULT_MEMBERSHIP_DURATION_SECONDS = 60 * 60 * 24 * 30
+const DEFAULT_MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS = 60 * 60 * 24
+
+function parsePositiveInt(value: string | undefined, fallback: number) {
+  if (!value) return fallback
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback
+  return Math.floor(parsed)
+}
+
+export const MEMBERSHIP_DURATION_SECONDS = parsePositiveInt(
+  process.env.NEXT_PUBLIC_MEMBERSHIP_DURATION_SECONDS,
+  DEFAULT_MEMBERSHIP_DURATION_SECONDS
+)
+
+export const MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS = parsePositiveInt(
+  process.env.NEXT_PUBLIC_MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS,
+  DEFAULT_MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS
+)

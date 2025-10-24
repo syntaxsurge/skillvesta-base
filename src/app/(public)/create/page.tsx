@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
-import { erc20Abi } from 'viem'
+import { erc20Abi, parseUnits } from 'viem'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -26,14 +25,23 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/convex/_generated/api'
-import { PLATFORM_TREASURY_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/config'
+import {
+  MEMBERSHIP_DURATION_SECONDS,
+  MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS,
+  PLATFORM_TREASURY_ADDRESS,
+  REGISTRAR_CONTRACT_ADDRESS,
+  USDC_CONTRACT_ADDRESS
+} from '@/lib/config'
 import {
   SUBSCRIPTION_PRICE_AMOUNT,
   SUBSCRIPTION_PRICE_LABEL
 } from '@/lib/pricing'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
+import { registrarAbi } from '@/lib/onchain/abi'
 import { GroupMediaFields } from '@/features/groups/components/group-media-fields'
+import { generateMembershipCourseId } from '@/features/groups/utils/membership'
 import { isValidMediaReference, normalizeMediaInput } from '@/features/groups/utils/media'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 const createGroupSchema = z
   .object({
@@ -120,7 +128,7 @@ const DEFAULT_VALUES: CreateGroupFormValues = {
 }
 
 export default function Create() {
-  const router = useRouter()
+  const router = useAppRouter()
   const { address } = useAccount()
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
@@ -159,9 +167,15 @@ export default function Create() {
 
     const treasuryAddress = PLATFORM_TREASURY_ADDRESS as `0x${string}` | ''
     const usdcTokenAddress = USDC_CONTRACT_ADDRESS as `0x${string}`
+    const registrarAddress = REGISTRAR_CONTRACT_ADDRESS as `0x${string}` | ''
 
     if (!treasuryAddress) {
       toast.error('Treasury address not configured')
+      return
+    }
+
+    if (!registrarAddress) {
+      toast.error('Registrar contract address not configured')
       return
     }
 
@@ -171,6 +185,7 @@ export default function Create() {
     }
 
     try {
+      let courseIdStr: string | null = null
       const balance = (await publicClient.readContract({
         address: usdcTokenAddress,
         abi: erc20Abi,
@@ -195,10 +210,32 @@ export default function Create() {
       txHash = hash
       await publicClient.waitForTransactionReceipt({ hash })
 
-      const formattedPrice =
+      const priceString =
         values.billingCadence === 'monthly' && values.price
-          ? Math.max(0, Number(values.price))
-          : 0
+          ? values.price.trim()
+          : ''
+      const formattedPrice =
+        priceString !== '' ? Math.max(0, Number(priceString)) : 0
+      const membershipPriceAmount =
+        priceString !== '' ? parseUnits(priceString, 6) : 0n
+
+      courseIdStr = generateMembershipCourseId()
+      const courseId = BigInt(courseIdStr)
+
+      const registerHash = await writeContractAsync({
+        address: registrarAddress,
+        abi: registrarAbi,
+        functionName: 'registerCourse',
+        args: [
+          courseId,
+          membershipPriceAmount,
+          [address as `0x${string}`],
+          [10000],
+          BigInt(MEMBERSHIP_DURATION_SECONDS),
+          BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+        ]
+      })
+      await publicClient.waitForTransactionReceipt({ hash: registerHash })
 
       const thumbnailSource = normalizeMediaInput(values.thumbnailUrl)
 
@@ -214,6 +251,10 @@ export default function Create() {
       const resolvedVisibility =
         values.billingCadence === 'monthly' ? 'private' : values.visibility
 
+      if (!courseIdStr) {
+        throw new Error('Failed to generate membership course id.')
+      }
+
       const groupId = await createGroup({
         ownerAddress: address,
         name: values.name.trim(),
@@ -226,8 +267,9 @@ export default function Create() {
         visibility: resolvedVisibility,
         billingCadence:
           formattedPrice > 0 ? 'monthly' : values.billingCadence,
-        price: formattedPrice
-      })
+        price: formattedPrice,
+        subscriptionId: courseIdStr
+      } as any)
 
       toast.success('Your group is live!')
       router.push(`/${groupId}/about`)

@@ -230,6 +230,7 @@ export const create = mutation({
       v.union(v.literal('free'), v.literal('monthly'))
     ),
     price: v.optional(v.number()),
+    subscriptionId: v.optional(v.string()),
     administrators: v.optional(
       v.array(
         v.object({
@@ -253,6 +254,8 @@ export const create = mutation({
       price
     )
 
+    const subscriptionId = args.subscriptionId ?? generateSubscriptionId()
+
     const groupId = await ctx.db.insert('groups', {
       name: args.name,
       description: args.description,
@@ -264,7 +267,7 @@ export const create = mutation({
       visibility,
       billingCadence,
       ownerId: owner._id,
-      subscriptionId: generateSubscriptionId(),
+      subscriptionId,
       endsOn: now + DEFAULT_SUBSCRIPTION_DURATION_MS,
       price,
       memberNumber: 1
