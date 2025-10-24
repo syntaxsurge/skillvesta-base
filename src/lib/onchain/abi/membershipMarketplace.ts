@@ -116,6 +116,13 @@ export const membershipMarketplaceAbi = [
   },
   {
     inputs: [],
+    name: 'membership',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [],
     name: 'maxListingDuration',
     outputs: [{ internalType: 'uint64', name: '', type: 'uint64' }],
     stateMutability: 'view',
