@@ -11,8 +11,10 @@ import { base } from 'viem/chains'
 
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
+import { Badge } from '@/components/ui/badge'
 import { useApiMutation } from '@/hooks/use-api-mutation'
 import { useCurrentUser } from '@/hooks/use-current-user'
+import { useGroupContext } from '@/features/groups/context/group-context'
 
 type GroupCommentCardProps = {
   comment: Doc<'comments'> & { author: Doc<'users'> }
@@ -20,11 +22,16 @@ type GroupCommentCardProps = {
 
 export function GroupCommentCard({ comment }: GroupCommentCardProps) {
   const { currentUser, address } = useCurrentUser()
+  const { owner, administrators } = useGroupContext()
   const { mutate: removeComment, pending: isRemoving } = useApiMutation(
     api.comments.remove
   )
 
   const isAuthor = currentUser?._id === comment.authorId
+  const isAuthorGroupOwner = comment.author._id === owner?._id
+  const isAuthorAdmin = administrators.some(
+    admin => admin.user._id === comment.author._id
+  )
   const timestamp = formatDistanceToNow(comment._creationTime, {
     addSuffix: true
   })
@@ -50,7 +57,19 @@ export function GroupCommentCard({ comment }: GroupCommentCardProps) {
 
       <OnchainIdentity address={authorAddress} chain={base}>
         <OnchainAvatar className='h-10 w-10' chain={base} />
-        <OnchainName className='font-semibold' chain={base} />
+        <div className='flex items-center gap-2'>
+          <OnchainName className='font-semibold' chain={base} />
+          {isAuthorGroupOwner && (
+            <Badge variant='default' className='h-5 px-2 text-xs'>
+              Owner
+            </Badge>
+          )}
+          {!isAuthorGroupOwner && isAuthorAdmin && (
+            <Badge variant='outline' className='h-5 px-2 text-xs'>
+              Admin
+            </Badge>
+          )}
+        </div>
       </OnchainIdentity>
 
       <div className='flex-1 space-y-1'>
