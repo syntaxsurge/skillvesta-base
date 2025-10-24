@@ -200,16 +200,7 @@ export default function Create() {
         return
       }
 
-      const hash = await writeContractAsync({
-        address: usdcTokenAddress,
-        abi: erc20Abi,
-        functionName: 'transfer',
-        args: [treasuryAddress, SUBSCRIPTION_PRICE_AMOUNT]
-      })
-
-      txHash = hash
-      await publicClient.waitForTransactionReceipt({ hash })
-
+      // Precompute price & course id so we can preflight the registrar call
       const priceString =
         values.billingCadence === 'monthly' && values.price
           ? values.price.trim()
@@ -221,6 +212,50 @@ export default function Create() {
 
       courseIdStr = generateMembershipCourseId()
       const courseId = BigInt(courseIdStr)
+
+      // Sanity: Registrar must have marketplace configured and match env
+      const registrarMarketplace = (await publicClient.readContract({
+        address: registrarAddress,
+        abi: registrarAbi,
+        functionName: 'marketplace'
+      })) as `0x${string}`
+      if (!registrarMarketplace || registrarMarketplace === '0x0000000000000000000000000000000000000000') {
+        toast.error('Registrar is not configured with a marketplace address. Contact the admin to set it.')
+        return
+      }
+
+      // Preflight the registrar call so we fail fast before charging the platform fee
+      try {
+        await publicClient.simulateContract({
+          address: registrarAddress,
+          abi: registrarAbi,
+          functionName: 'registerCourse',
+          args: [
+            courseId,
+            membershipPriceAmount,
+            [address as `0x${string}`],
+            [10000],
+            BigInt(MEMBERSHIP_DURATION_SECONDS),
+            BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+          ],
+          account: address as `0x${string}`
+        })
+      } catch (err: any) {
+        console.error('Preflight registerCourse failed', err)
+        toast.error(err?.shortMessage ?? 'Registrar rejected course registration. Check configuration.')
+        return
+      }
+
+      // Platform fee payment (after preflight so we don’t charge if wiring is broken)
+      const hash = await writeContractAsync({
+        address: usdcTokenAddress,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [treasuryAddress, SUBSCRIPTION_PRICE_AMOUNT]
+      })
+
+      txHash = hash
+      await publicClient.waitForTransactionReceipt({ hash })
 
       const registerHash = await writeContractAsync({
         address: registrarAddress,
