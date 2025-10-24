@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import { Calendar, CreditCard, Globe, Lock, Users } from 'lucide-react'
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  CreditCard,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Lock,
+  Users
+} from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
 
@@ -17,11 +27,20 @@ import { MEMBERSHIP_CONTRACT_ADDRESS } from '@/lib/config'
 import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
+type CourseVerificationState =
+  | { status: 'checking' }
+  | { status: 'verified' }
+  | { status: 'missing'; message: string }
+  | { status: 'error'; message: string }
+
 export function GroupAboutSection() {
   const { group, owner, isOwner, memberCount, membership, currentUser } = useGroupContext()
   const { address } = useAccount()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
-  const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | null
+  const membershipAddress = useMemo(() => {
+    const value = MEMBERSHIP_CONTRACT_ADDRESS?.trim()
+    return value ? (value as `0x${string}`) : null
+  }, [])
   const membershipService = useMemo(() => {
     if (!publicClient || !membershipAddress) return null
     return new MembershipPassService({
@@ -34,11 +53,74 @@ export function GroupAboutSection() {
     const normalized = normalizePassExpiry(membership.passExpiresAt)
     return normalized ?? null
   })
+  const [courseVerification, setCourseVerification] = useState<CourseVerificationState>(() =>
+    membershipCourseId
+      ? { status: 'checking' }
+      : { status: 'missing', message: 'Membership course ID not assigned.' }
+  )
 
   useEffect(() => {
     const normalized = normalizePassExpiry(membership.passExpiresAt)
     setPassExpiryMs(normalized ?? null)
   }, [membership.passExpiresAt])
+
+  useEffect(() => {
+    if (!membershipCourseId) {
+      setCourseVerification({
+        status: 'missing',
+        message: 'Membership course ID not assigned.'
+      })
+      return
+    }
+
+    if (!membershipAddress) {
+      setCourseVerification({
+        status: 'error',
+        message: 'Membership contract address is not configured.'
+      })
+      return
+    }
+
+    if (!membershipService) {
+      setCourseVerification({ status: 'checking' })
+      return
+    }
+
+    let cancelled = false
+    setCourseVerification({ status: 'checking' })
+
+    membershipService
+      .getCourse(membershipCourseId)
+      .then(() => {
+        if (!cancelled) {
+          setCourseVerification({ status: 'verified' })
+        }
+      })
+      .catch(error => {
+        if (cancelled) return
+        const errorMessage = error instanceof Error ? error.message : ''
+        const notFound = /CourseNotFound/i.test(errorMessage)
+        if (!notFound) {
+          console.error('Failed to verify membership course for about page', error)
+        }
+        setCourseVerification(
+          notFound
+            ? {
+                status: 'missing',
+                message:
+                  'No on-chain course found for this ID. Contact the creator to refresh registration.'
+              }
+            : {
+                status: 'error',
+                message: 'Unable to confirm on-chain course. Try again later.'
+              }
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [membershipAddress, membershipCourseId, membershipService])
 
   useEffect(() => {
     if (
@@ -123,6 +205,59 @@ export function GroupAboutSection() {
 
     return `${absolute} (${relative})`
   }, [membership.status, passExpiryMs])
+  const membershipCourseIdLabel = membershipCourseId ? membershipCourseId.toString() : 'Not assigned'
+  const explorerName = ACTIVE_CHAIN.blockExplorers?.default.name ?? 'block explorer'
+  const explorerUrl = useMemo(() => {
+    if (!membershipCourseId || !membershipAddress) return null
+    const baseUrl = ACTIVE_CHAIN.blockExplorers?.default.url
+    if (!baseUrl) return null
+    return `${baseUrl}/token/${membershipAddress}?a=${membershipCourseId.toString()}`
+  }, [membershipAddress, membershipCourseId])
+  const verificationNode = useMemo(() => {
+    switch (courseVerification.status) {
+      case 'checking':
+        return (
+          <div className='inline-flex items-center gap-2 text-muted-foreground'>
+            <Loader2 className='h-3 w-3 animate-spin' />
+            <span>Checking on-chain deployment...</span>
+          </div>
+        )
+      case 'verified':
+        return (
+          <div className='inline-flex flex-wrap items-center gap-2 text-emerald-600 dark:text-emerald-400'>
+            <CheckCircle2 className='h-4 w-4' />
+            <span>Course verified on chain.</span>
+            {explorerUrl ? (
+              <a
+                href={explorerUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='inline-flex items-center gap-1 font-medium underline decoration-dotted underline-offset-4'
+              >
+                View on {explorerName}
+                <ExternalLink className='h-3 w-3' />
+              </a>
+            ) : null}
+          </div>
+        )
+      case 'missing':
+        return (
+          <div className='inline-flex items-start gap-2 text-amber-600 dark:text-amber-400'>
+            <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
+            <span>{courseVerification.message}</span>
+          </div>
+        )
+      case 'error':
+        return (
+          <div className='inline-flex items-start gap-2 text-destructive'>
+            <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
+            <span>{courseVerification.message}</span>
+          </div>
+        )
+      default:
+        return null
+    }
+  }, [courseVerification, explorerName, explorerUrl])
 
   return (
     <div className='grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]'>
@@ -181,6 +316,20 @@ export function GroupAboutSection() {
               ))}
             </div>
           )}
+
+          <div className='space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-sm'>
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              <div>
+                <p className='text-xs font-medium uppercase text-muted-foreground'>
+                  Membership course ID
+                </p>
+                <p className='mt-1 font-mono text-base text-foreground'>
+                  {membershipCourseIdLabel}
+                </p>
+              </div>
+            </div>
+            <div className='pt-1 text-xs text-muted-foreground'>{verificationNode}</div>
+          </div>
         </div>
 
         <GroupDescriptionEditor

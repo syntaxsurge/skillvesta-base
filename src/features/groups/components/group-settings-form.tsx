@@ -5,17 +5,10 @@ import { useMutation } from 'convex/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { useAccount, usePublicClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { z } from 'zod'
 
-import {
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
-  Loader2,
-  Plus,
-  Trash2
-} from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -29,15 +22,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { MEMBERSHIP_CONTRACT_ADDRESS } from '@/lib/config'
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
 import { useGroupContext } from '../context/group-context'
-import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
-import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { GroupMediaFields } from './group-media-fields'
 import { isValidMediaReference, normalizeMediaInput } from '../utils/media'
-import { resolveMembershipCourseId } from '../utils/membership'
 
 const administratorSchema = z.object({
   walletAddress: z
@@ -161,106 +150,8 @@ type GroupSettingsFormProps = {
 
 type GroupSettingsValues = z.infer<typeof settingsSchema>
 
-type CourseVerificationState =
-  | { status: 'checking' }
-  | { status: 'verified' }
-  | { status: 'missing'; message: string }
-  | { status: 'error'; message: string }
-
 export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   const { address } = useAccount()
-  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
-  const membershipContractAddress = useMemo(() => {
-    const value = MEMBERSHIP_CONTRACT_ADDRESS?.trim()
-    return value ? (value as `0x${string}`) : null
-  }, [])
-  const membershipService = useMemo(() => {
-    if (!publicClient || !membershipContractAddress) return null
-    return new MembershipPassService({
-      publicClient: publicClient as any,
-      address: membershipContractAddress
-    })
-  }, [publicClient, membershipContractAddress])
-  const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
-  const [courseVerification, setCourseVerification] = useState<CourseVerificationState>(() =>
-    membershipCourseId
-      ? { status: 'checking' }
-      : { status: 'missing', message: 'Membership course ID not assigned.' }
-  )
-  const applyCourseVerification = useCallback((next: CourseVerificationState) => {
-    setCourseVerification(prev => {
-      const prevMessage = 'message' in prev ? prev.message : undefined
-      const nextMessage = 'message' in next ? next.message : undefined
-      if (prev.status === next.status && prevMessage === nextMessage) {
-        return prev
-      }
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!membershipCourseId) {
-      applyCourseVerification({
-        status: 'missing',
-        message: 'Membership course ID not assigned.'
-      })
-      return
-    }
-
-    if (!membershipContractAddress) {
-      applyCourseVerification({
-        status: 'error',
-        message: 'Membership contract address is not configured.'
-      })
-      return
-    }
-
-    if (!membershipService) {
-      applyCourseVerification({ status: 'checking' })
-      return
-    }
-
-    let cancelled = false
-    applyCourseVerification({ status: 'checking' })
-
-    membershipService
-      .getCourse(membershipCourseId)
-      .then(() => {
-        if (!cancelled) {
-          applyCourseVerification({ status: 'verified' })
-        }
-      })
-      .catch(error => {
-        if (cancelled) return
-        const errorMessage = error instanceof Error ? error.message : ''
-        const notFound = /CourseNotFound/i.test(errorMessage)
-        if (!notFound) {
-          console.error('Failed to verify membership course', error)
-        }
-        applyCourseVerification(
-          notFound
-            ? {
-                status: 'missing',
-                message:
-                  'No on-chain course found for this ID. Confirm the ID or deploy the course through the registrar.'
-              }
-            : {
-                status: 'error',
-                message: 'Unable to confirm on-chain course. Try again later.'
-              }
-        )
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    applyCourseVerification,
-    membershipContractAddress,
-    membershipCourseId,
-    membershipService
-  ])
-
   const { owner, administrators: existingAdministrators, media } = useGroupContext()
   const updateSettings = useMutation(api.groups.updateSettings)
   const generateUploadUrl = useMutation(api.media.generateUploadUrl)
@@ -333,58 +224,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     return total + share
   }, 0)
   const ownerShare = Math.max(0, Number((100 - totalAdminShare).toFixed(2)))
-  const explorerName = ACTIVE_CHAIN.blockExplorers?.default.name ?? 'block explorer'
-  const explorerUrl = useMemo(() => {
-    if (!membershipContractAddress || !membershipCourseId) return null
-    const baseUrl = ACTIVE_CHAIN.blockExplorers?.default.url
-    if (!baseUrl) return null
-    return `${baseUrl}/token/${membershipContractAddress}?a=${membershipCourseId.toString()}`
-  }, [membershipContractAddress, membershipCourseId])
-  const verificationNode = useMemo(() => {
-    switch (courseVerification.status) {
-      case 'checking':
-        return (
-          <div className='flex items-center gap-2 text-muted-foreground'>
-            <Loader2 className='h-3 w-3 animate-spin' />
-            <span>Checking on-chain deployment...</span>
-          </div>
-        )
-      case 'verified':
-        return (
-          <div className='flex flex-wrap items-center gap-2 text-emerald-600 dark:text-emerald-400'>
-            <CheckCircle2 className='h-4 w-4' />
-            <span>Course verified on chain.</span>
-            {explorerUrl ? (
-              <a
-                href={explorerUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='inline-flex items-center gap-1 font-medium underline decoration-dotted underline-offset-4'
-              >
-                View on {explorerName}
-                <ExternalLink className='h-3 w-3' />
-              </a>
-            ) : null}
-          </div>
-        )
-      case 'missing':
-        return (
-          <div className='flex items-start gap-2 text-amber-600 dark:text-amber-400'>
-            <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
-            <span>{courseVerification.message}</span>
-          </div>
-        )
-      case 'error':
-        return (
-          <div className='flex items-start gap-2 text-destructive'>
-            <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
-            <span>{courseVerification.message}</span>
-          </div>
-        )
-      default:
-        return null
-    }
-  }, [courseVerification, explorerName, explorerUrl])
   const onSubmit = async (values: GroupSettingsValues) => {
     if (!address) {
       toast.error('Connect your wallet to update settings.')
@@ -609,17 +448,6 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
             )}
           />
         )}
-
-        <div className='space-y-2'>
-          <label className='text-sm font-medium text-foreground'>Membership course ID</label>
-          <Input value={group.subscriptionId ?? '—'} readOnly />
-          <p className='text-xs text-muted-foreground'>
-            Auto-generated when the group was created. Reference this value to locate the matching ERC-1155 pass.
-          </p>
-          <div className='rounded-md border border-border/50 bg-muted/40 p-3 text-xs leading-relaxed'>
-            {verificationNode}
-          </div>
-        </div>
 
         <div className='space-y-3 rounded-xl border border-border p-4'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
