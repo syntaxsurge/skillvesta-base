@@ -319,204 +319,276 @@ export default function Create() {
   }
 
   return (
-    <div className='grid gap-10 lg:grid-cols-[minmax(0,480px)_minmax(0,520px)]'>
-      <div className='space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm'>
-        <Logo />
-        <div className='space-y-2'>
-          <h1 className='text-2xl font-semibold text-foreground'>
+    <div className='relative min-h-screen overflow-hidden bg-gradient-to-br from-background via-background to-muted/30'>
+      {/* Decorative background elements */}
+      <div className='absolute inset-0 overflow-hidden'>
+        <div className='absolute -left-4 top-0 h-72 w-72 rounded-full bg-primary/5 blur-3xl' />
+        <div className='absolute -right-4 top-1/4 h-96 w-96 rounded-full bg-accent/5 blur-3xl' />
+        <div className='absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-primary/5 blur-3xl' />
+      </div>
+
+      <div className='relative mx-auto max-w-6xl px-6 py-12'>
+        {/* Header */}
+        <div className='mb-12 text-center'>
+          <div className='mb-6 flex justify-center'>
+            <Logo width={180} height={40} />
+          </div>
+          <h1 className='mb-4 text-5xl font-bold tracking-tight text-foreground md:text-6xl'>
             Launch your community
           </h1>
-          <p className='text-sm text-muted-foreground'>
-            {SUBSCRIPTION_PRICE_LABEL}. Cancel anytime hassle-free. Access all features with unlimited usage and no hidden charges.
+          <p className='mx-auto max-w-2xl text-lg text-muted-foreground'>
+            Build, engage, and monetize your community with powerful tools designed for modern creators
           </p>
         </div>
 
-        <ul className='space-y-2 text-sm text-muted-foreground'>
-          <li>🚀 Drive exceptional engagement</li>
-          <li>💖 Set up seamlessly</li>
-          <li>😄 Offer a delightful user experience</li>
-          <li>💸 Monetize through Base-native membership fees</li>
-          <li>📱 Accessible via iOS and Android apps</li>
-          <li>🌍 Connect with members around the globe</li>
-        </ul>
-      </div>
-
-      <div className='rounded-2xl border border-border bg-card p-8 shadow-sm'>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-6'>
-            <div className='space-y-4'>
-              <FormField
-                control={form.control}
-                name='name'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Group name</FormLabel>
-                    <FormControl>
-                      <Input placeholder='Self Inquiry Support Group' {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='shortDescription'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tagline</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder='Share what members will experience.'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className='grid gap-4 md:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='visibility'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Visibility</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={billingCadence === 'monthly'}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Select visibility' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem
-                            value='public'
-                            disabled={billingCadence === 'monthly'}
-                          >
-                            Public
-                          </SelectItem>
-                          <SelectItem value='private'>Private</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Public groups let anyone browse your classroom and feed. Private groups gate content to members.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='billingCadence'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Membership</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={value => {
-                          field.onChange(value)
-                          if (value === 'free') {
-                            form.setValue('price', '')
-                          }
-                        }}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Choose pricing' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value='free'>Free for members</SelectItem>
-                          <SelectItem value='monthly'>Paid subscription</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Choose whether members pay a monthly USDC subscription to join.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        {/* Main Content */}
+        <div className='mx-auto max-w-3xl'>
+          {/* Pricing Banner */}
+          <div className='mb-8 rounded-2xl border border-border/50 bg-card/80 p-6 shadow-lg backdrop-blur-sm'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm font-medium text-muted-foreground'>Platform fee</p>
+                <p className='text-3xl font-bold text-foreground'>{SUBSCRIPTION_PRICE_LABEL}</p>
               </div>
+              <div className='rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary'>
+                One-time payment
+              </div>
+            </div>
+            <p className='mt-4 text-sm text-muted-foreground'>
+              Access all features with unlimited usage. No hidden charges or recurring platform fees.
+            </p>
+          </div>
 
-              {form.watch('billingCadence') === 'monthly' && (
+          {/* Features Grid */}
+          <div className='mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+            {[
+              { icon: '🚀', title: 'Drive Engagement', desc: 'Keep your community active' },
+              { icon: '💖', title: 'Easy Setup', desc: 'Launch in minutes' },
+              { icon: '💸', title: 'Monetize', desc: 'Base-native payments' },
+              { icon: '📱', title: 'Mobile Ready', desc: 'iOS & Android apps' },
+              { icon: '🌍', title: 'Global Reach', desc: 'Connect worldwide' },
+              { icon: '🎓', title: 'Course Builder', desc: 'Built-in classroom' }
+            ].map((feature, i) => (
+              <div
+                key={i}
+                className='rounded-xl border border-border/50 bg-card/60 p-4 backdrop-blur-sm transition-all hover:bg-card/80 hover:shadow-md'
+              >
+                <div className='mb-2 text-2xl'>{feature.icon}</div>
+                <h3 className='mb-1 font-semibold text-foreground'>{feature.title}</h3>
+                <p className='text-xs text-muted-foreground'>{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Form Card */}
+          <div className='rounded-2xl border border-border/50 bg-card/80 p-8 shadow-2xl backdrop-blur-sm md:p-10'>
+            <div className='mb-8'>
+              <h2 className='text-2xl font-bold text-foreground'>Group Details</h2>
+              <p className='mt-2 text-sm text-muted-foreground'>
+                Fill in the information below to create your community
+              </p>
+            </div>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-6'>
                 <FormField
                   control={form.control}
-                  name='price'
+                  name='name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Monthly price (USDC)</FormLabel>
+                      <FormLabel className='text-sm font-semibold'>Group name</FormLabel>
                       <FormControl>
                         <Input
-                          type='number'
-                          min='0'
-                          step='0.01'
-                          placeholder='49'
+                          placeholder='e.g., AI Automation Society'
+                          className='h-12'
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Members will pay this amount in USDC when they join.
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='shortDescription'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-semibold'>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={4}
+                          placeholder='Describe what makes your community special...'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='visibility'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className='text-sm font-semibold'>Visibility</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={billingCadence === 'monthly'}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='h-12'>
+                              <SelectValue placeholder='Select visibility' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem
+                              value='public'
+                              disabled={billingCadence === 'monthly'}
+                            >
+                              Public
+                            </SelectItem>
+                            <SelectItem value='private'>Private</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription className='text-xs'>
+                          Public groups are discoverable by everyone
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='billingCadence'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className='text-sm font-semibold'>Membership Type</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={value => {
+                            field.onChange(value)
+                            if (value === 'free') {
+                              form.setValue('price', '')
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='h-12'>
+                              <SelectValue placeholder='Choose pricing' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value='free'>Free</SelectItem>
+                            <SelectItem value='monthly'>Paid (Monthly)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription className='text-xs'>
+                          Set your membership model
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {form.watch('billingCadence') === 'monthly' && (
+                  <FormField
+                    control={form.control}
+                    name='price'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className='text-sm font-semibold'>Monthly Price (USDC)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            placeholder='49.00'
+                            className='h-12'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription className='text-xs'>
+                          Members pay this amount monthly in USDC
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                <div className='space-y-4'>
+                  <h3 className='text-sm font-semibold text-foreground'>Media & Branding</h3>
+                  <GroupMediaFields
+                    form={form}
+                    requestUploadUrl={requestUploadUrl}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='aboutUrl'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-semibold'>Intro Video URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='https://youtube.com/watch?v=...'
+                          className='h-12'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription className='text-xs'>
+                        YouTube, Vimeo, or direct video links
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
 
-              <GroupMediaFields
-                form={form}
-                requestUploadUrl={requestUploadUrl}
-              />
+                <FormField
+                  control={form.control}
+                  name='tags'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-semibold'>Tags (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='community, education, technology'
+                          className='h-12'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription className='text-xs'>
+                        Comma-separated tags help members find you
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name='aboutUrl'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Intro video URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder='https://youtube.com/watch?v=...' {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Supports YouTube, Vimeo, or direct video links.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-
-              <FormField
-                control={form.control}
-                name='tags'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tags</FormLabel>
-                    <FormControl>
-                      <Input placeholder='community, mindset, health' {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Separate tags with commas to help members discover your group.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <Button type='submit' disabled={isProcessing} className='w-full'>
-              {isProcessing ? 'Processing...' : 'Create group'}
-            </Button>
-          </form>
-        </Form>
+                <div className='pt-4'>
+                  <Button
+                    type='submit'
+                    disabled={isProcessing}
+                    className='h-12 w-full text-base font-semibold uppercase tracking-wide'
+                    size='lg'
+                  >
+                    {isProcessing ? 'Creating Your Community...' : 'Create Community'}
+                  </Button>
+                  <p className='mt-3 text-center text-xs text-muted-foreground'>
+                    By creating a community, you agree to our terms of service
+                  </p>
+                </div>
+              </form>
+            </Form>
+          </div>
+        </div>
       </div>
     </div>
   )

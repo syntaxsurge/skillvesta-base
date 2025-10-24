@@ -563,88 +563,104 @@ export function MarketplaceShell() {
   }
 
   return (
-    <section className='mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12'>
-      <Hero
-        listingCount={
-          data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0
-        }
-        canList={ownedCourses.length > 0}
-        onListPass={handleListFromHero}
-      />
-
-      <div className='flex flex-col gap-8 lg:flex-row'>
-        <aside className='w-full max-w-sm flex-shrink-0 space-y-6 rounded-3xl border border-border/60 bg-background/70 p-6 shadow-sm backdrop-blur'>
-          <FilterControls filters={filters} onChange={setFilters} />
-
-          <Separator />
-
-          <div className='space-y-2 text-sm'>
-            <p className='text-xs uppercase tracking-wide text-muted-foreground'>
-              Primary price
-            </p>
-            <p className='text-lg font-semibold text-foreground'>
-              {SUBSCRIPTION_PRICE_LABEL}
-            </p>
-            <p className='text-xs text-muted-foreground'>
-              Settlement asset: USDC (Base)
-            </p>
-            <p className='pt-2 text-xs text-muted-foreground'>
-              Treasury address
-            </p>
-            <p className='break-all text-sm text-foreground'>
-              {PLATFORM_TREASURY_ADDRESS}
-            </p>
-            <p className='pt-2 text-xs text-muted-foreground'>
-              Marketplace contract
-            </p>
-            <p className='break-all text-sm text-foreground'>
-              {MARKETPLACE_CONTRACT_ADDRESS}
-            </p>
-          </div>
-        </aside>
-
-        <main className='flex-1 space-y-6'>
-          {isLoading && (
-            <div className='flex flex-col items-center gap-3 text-muted-foreground'>
-              <LoadingIndicator />
-              <p>Loading marketplace data…</p>
-            </div>
-          )}
-
-          {!isLoading && filteredCourses.length === 0 && (
-            <p className='text-muted-foreground'>
-              No courses match your filters.
-            </p>
-          )}
-
-          {!isLoading && filteredCourses.length > 0 && (
-            <div className='grid gap-6 md:grid-cols-2'>
-              {filteredCourses.map(course => (
-                <CourseCard
-                  key={course.catalog.courseId.toString()}
-                  course={course}
-                  onBuyPrimary={handlePrimaryPurchase}
-                  onBuyFloor={handleBuyFloor}
-                  onList={openListDialog}
-                  onRenew={handleRenew}
-                />
-              ))}
-            </div>
-          )}
-
-          {data && data.some(entry => entry.listings.length > 0) && (
-            <LiveListings data={data} />
-          )}
-        </main>
+    <div className='relative min-h-screen overflow-hidden bg-gradient-to-br from-background via-background to-muted/20'>
+      {/* Decorative background elements */}
+      <div className='absolute inset-0 overflow-hidden'>
+        <div className='absolute -left-12 top-0 h-96 w-96 rounded-full bg-primary/5 blur-3xl' />
+        <div className='absolute -right-12 top-1/3 h-80 w-80 rounded-full bg-accent/5 blur-3xl' />
+        <div className='absolute bottom-0 left-1/2 h-72 w-72 rounded-full bg-primary/5 blur-3xl' />
       </div>
 
-      <ListDialog
-        state={listDialog}
-        onClose={closeListDialog}
-        onSubmit={handleCreateListing}
-        eligibleCourses={ownedCourses}
-      />
-    </section>
+      <section className='relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12'>
+        <Hero
+          listingCount={
+            data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0
+          }
+          canList={ownedCourses.length > 0}
+          onListPass={handleListFromHero}
+        />
+
+        <div className='flex flex-col gap-8 lg:flex-row'>
+          <aside className='w-full max-w-xs flex-shrink-0 space-y-6 rounded-xl border border-border/50 bg-card/80 p-6 shadow-lg backdrop-blur-sm'>
+            <FilterControls filters={filters} onChange={setFilters} />
+
+            <Separator className='bg-border/50' />
+
+            <div className='space-y-4 rounded-lg bg-muted/30 p-4'>
+              <div>
+                <p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+                  Primary price
+                </p>
+                <p className='mt-1 text-2xl font-bold text-foreground'>
+                  {SUBSCRIPTION_PRICE_LABEL}
+                </p>
+                <p className='mt-1 text-xs text-muted-foreground'>
+                  Settlement: USDC on Base
+                </p>
+              </div>
+            </div>
+
+            <div className='space-y-3 text-xs'>
+              <div>
+                <p className='font-semibold text-muted-foreground'>Treasury</p>
+                <p className='mt-1 break-all font-mono text-[0.65rem] text-foreground'>
+                  {PLATFORM_TREASURY_ADDRESS}
+                </p>
+              </div>
+              <div>
+                <p className='font-semibold text-muted-foreground'>Marketplace</p>
+                <p className='mt-1 break-all font-mono text-[0.65rem] text-foreground'>
+                  {MARKETPLACE_CONTRACT_ADDRESS}
+                </p>
+              </div>
+            </div>
+          </aside>
+
+          <main className='flex-1 space-y-8'>
+            {isLoading && (
+              <div className='flex flex-col items-center gap-4 rounded-xl border border-border/50 bg-card/60 py-16 text-muted-foreground backdrop-blur-sm'>
+                <LoadingIndicator />
+                <p className='text-sm font-medium'>Loading marketplace data…</p>
+              </div>
+            )}
+
+            {!isLoading && filteredCourses.length === 0 && (
+              <div className='rounded-xl border border-border/50 bg-card/60 py-16 text-center backdrop-blur-sm'>
+                <p className='text-sm text-muted-foreground'>
+                  No courses match your filters. Try adjusting your search.
+                </p>
+              </div>
+            )}
+
+            {!isLoading && filteredCourses.length > 0 && (
+              <div className='grid gap-6 lg:grid-cols-2'>
+                {filteredCourses.map(course => (
+                  <CourseCard
+                    key={course.catalog.courseId.toString()}
+                    course={course}
+                    onBuyPrimary={handlePrimaryPurchase}
+                    onBuyFloor={handleBuyFloor}
+                    onList={openListDialog}
+                    onRenew={handleRenew}
+                  />
+                ))}
+              </div>
+            )}
+
+            {data && data.some(entry => entry.listings.length > 0) && (
+              <LiveListings data={data} />
+            )}
+          </main>
+        </div>
+
+        <ListDialog
+          state={listDialog}
+          onClose={closeListDialog}
+          onSubmit={handleCreateListing}
+          eligibleCourses={ownedCourses}
+        />
+      </section>
+    </div>
   )
 }
 
@@ -658,32 +674,44 @@ function Hero({
   onListPass: () => void
 }) {
   return (
-    <div className='relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-10 py-14 text-white shadow-lg'>
-      <div className='absolute -right-12 top-12 h-48 w-48 rounded-full bg-emerald-500/40 blur-3xl' />
-      <div className='absolute -bottom-12 left-16 h-52 w-52 rounded-full bg-cyan-500/40 blur-3xl' />
-      <div className='relative space-y-4'>
-        <p className='inline-flex rounded-full bg-white/10 px-4 py-1 text-xs uppercase tracking-widest text-emerald-200'>
-          Skillvesta Marketplace
-        </p>
-        <h1 className='text-4xl font-semibold sm:text-5xl'>
-          Unlock, trade & renew course memberships
-        </h1>
-        <p className='max-w-2xl text-lg text-slate-200'>
-          Buy new passes, discover secondary listings, or renew your existing
-          memberships with cooldown-aware transfers and platform fees baked in.
-        </p>
-        <div className='flex flex-wrap gap-6 pt-2 text-sm text-slate-200'>
-          <HeroStat label='Collections live' value='3+' />
-          <HeroStat label='Active listings' value={String(listingCount)} />
-          <HeroStat label='Settlement asset' value='USDC • Base Sepolia' />
+    <div className='relative overflow-hidden rounded-2xl border border-border/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-10 py-16 text-white shadow-2xl md:px-14'>
+      <div className='absolute -right-12 top-12 h-72 w-72 rounded-full bg-primary/20 blur-3xl' />
+      <div className='absolute -bottom-12 left-16 h-64 w-64 rounded-full bg-accent/20 blur-3xl' />
+      <div className='relative space-y-6'>
+        <div className='inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 backdrop-blur-sm'>
+          <div className='h-2 w-2 rounded-full bg-primary animate-pulse' />
+          <p className='text-xs font-semibold uppercase tracking-wider text-white/90'>
+            Skillvesta Marketplace
+          </p>
         </div>
-        <div className='flex flex-wrap items-center gap-3 pt-6'>
-          <Button variant='secondary' onClick={onListPass} disabled={!canList}>
-            List a membership
+        <h1 className='text-5xl font-bold leading-tight sm:text-6xl'>
+          Discover & Trade
+          <br />
+          <span className='bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent'>
+            Course Memberships
+          </span>
+        </h1>
+        <p className='max-w-2xl text-lg leading-relaxed text-slate-300'>
+          Buy new passes, discover secondary listings, or renew existing memberships.
+          All transactions are secured with cooldown-aware transfers on Base.
+        </p>
+        <div className='grid gap-4 pt-4 sm:grid-cols-3'>
+          <HeroStat label='Collections' value='3+' />
+          <HeroStat label='Active Listings' value={String(listingCount)} />
+          <HeroStat label='Network' value='Base' />
+        </div>
+        <div className='flex flex-wrap items-center gap-4 pt-4'>
+          <Button
+            onClick={onListPass}
+            disabled={!canList}
+            className='h-12 px-8 font-semibold'
+            size='lg'
+          >
+            List Your Membership
           </Button>
           {!canList && (
-            <p className='text-xs text-slate-200/80'>
-              Mint or purchase a pass to unlock listing.
+            <p className='text-sm text-slate-300'>
+              Purchase a pass to start listing
             </p>
           )}
         </div>
@@ -694,9 +722,9 @@ function Hero({
 
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className='rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur'>
-      <p className='text-xs uppercase tracking-widest text-white/70'>{label}</p>
-      <p className='text-base font-semibold text-white'>{value}</p>
+    <div className='rounded-xl border border-white/20 bg-white/5 px-5 py-3 backdrop-blur-sm'>
+      <p className='text-xs font-medium uppercase tracking-wider text-white/60'>{label}</p>
+      <p className='mt-1 text-2xl font-bold text-white'>{value}</p>
     </div>
   )
 }
@@ -709,41 +737,40 @@ function FilterControls({
   onChange: (filters: Filters) => void
 }) {
   return (
-    <div className='space-y-4'>
+    <div className='space-y-5'>
       <div>
-        <Label htmlFor='marketplace-search'>Search</Label>
+        <h3 className='mb-3 text-sm font-bold text-foreground'>Search</h3>
         <Input
           id='marketplace-search'
-          className='mt-2'
-          placeholder='Search courses or tags'
+          placeholder='Search courses or tags...'
           value={filters.search}
           onChange={event =>
             onChange({ ...filters, search: event.target.value })
           }
+          className='h-11'
         />
       </div>
 
-      <div className='space-y-2'>
-        <Label htmlFor='marketplace-expiry'>Listing expiration</Label>
+      <div className='space-y-3'>
+        <h3 className='text-sm font-bold text-foreground'>Listing Expiration</h3>
         <Select
           value={filters.expiry}
           onValueChange={value =>
             onChange({ ...filters, expiry: value as ExpiryFilter })
           }
         >
-          <SelectTrigger id='marketplace-expiry'>
+          <SelectTrigger id='marketplace-expiry' className='h-11'>
             <SelectValue placeholder='Any expiration' />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='any'>Any expiration</SelectItem>
             <SelectItem value='7d'>Ends within 7 days</SelectItem>
             <SelectItem value='30d'>Ends within 30 days</SelectItem>
-            <SelectItem value='no-expiry'>No scheduled expiry</SelectItem>
+            <SelectItem value='no-expiry'>No expiry</SelectItem>
           </SelectContent>
         </Select>
-        <p className='text-xs text-muted-foreground'>
-          Filter courses by when their live listings expire. Choose &ldquo;No
-          scheduled expiry&rdquo; to see listings without a set end date.
+        <p className='text-xs leading-relaxed text-muted-foreground'>
+          Filter by listing expiration window
         </p>
       </div>
     </div>
@@ -854,121 +881,124 @@ function CourseCard({
       : undefined
 
   return (
-    <div className='flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/80 shadow-sm backdrop-blur'>
+    <div className='group flex h-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card/80 shadow-lg backdrop-blur-sm transition-all hover:shadow-xl'>
       <div
-        className={`h-32 rounded-t-3xl bg-gradient-to-r ${course.catalog.coverGradient}`}
-      />
-      <div className='flex flex-1 flex-col gap-4 px-6 py-6'>
+        className={`relative h-40 bg-gradient-to-br ${course.catalog.coverGradient}`}
+      >
+        <div className='absolute inset-0 bg-gradient-to-t from-black/40 to-transparent' />
+        <div className='absolute bottom-4 left-4 right-4'>
+          <p className='text-xs font-semibold uppercase tracking-wider text-white/80'>
+            #{course.catalog.courseId.toString()}
+          </p>
+          <h2 className='mt-1 text-2xl font-bold text-white'>
+            {course.catalog.title}
+          </h2>
+        </div>
+      </div>
+
+      <div className='flex flex-1 flex-col gap-4 p-6'>
         <div className='flex items-start justify-between gap-3'>
-          <div>
-            <p className='text-xs uppercase tracking-wide text-muted-foreground'>
-              Membership pass #{course.catalog.courseId.toString()}
-            </p>
-            <h2 className='mt-1 text-xl font-semibold text-foreground'>
-              {course.catalog.title}
-            </h2>
-            <p className='text-sm text-muted-foreground'>
-              {course.catalog.subtitle}
-            </p>
-          </div>
-          <div className='text-right text-sm'>
-            <p className='text-xs text-muted-foreground'>Primary price</p>
-            <p className='font-semibold text-foreground'>
+          <p className='text-sm leading-relaxed text-muted-foreground'>
+            {course.catalog.subtitle}
+          </p>
+          <div className='flex flex-col items-end gap-1 rounded-lg bg-primary/10 px-3 py-2'>
+            <p className='text-xs font-medium text-muted-foreground'>Primary</p>
+            <p className='text-lg font-bold text-foreground'>
               {formatUSDC(course.stats.primaryPrice)}
             </p>
             {course.floorPrice && (
-              <p className='text-xs text-muted-foreground'>
-                Floor {formatUSDC(course.floorPrice)}
+              <p className='text-xs font-medium text-accent'>
+                Floor: {formatUSDC(course.floorPrice)}
               </p>
             )}
           </div>
         </div>
 
-        <p className='text-sm text-muted-foreground'>
+        <p className='line-clamp-2 text-sm text-muted-foreground'>
           {course.catalog.summary}
         </p>
 
-        <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
-          {tags.map(tag => (
+        <div className='flex flex-wrap gap-2'>
+          {tags.slice(0, 3).map(tag => (
             <span
               key={tag}
-              className='rounded-full border border-border px-3 py-1'
+              className='rounded-full bg-secondary px-3 py-1 text-xs font-medium text-foreground'
             >
               {tag}
             </span>
           ))}
         </div>
 
-        <dl className='grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-2'>
+        <dl className='grid gap-3 rounded-lg bg-muted/40 p-4 text-xs sm:grid-cols-2'>
           <StatItem
-            label='Live listings'
+            label='Listings'
             value={String(course.stats.listingCount)}
           />
           <StatItem
-            label='Membership duration'
+            label='Duration'
             value={formatDurationShort(course.stats.duration)}
           />
           <StatItem
-            label='Transfer cooldown'
+            label='Cooldown'
             value={formatDurationShort(course.stats.cooldown)}
           />
           <StatItem
-            label='Next listing expiry'
+            label='Next Expiry'
             value={nextListingExpiryLabel}
           />
-          <StatItem label='Transfer ready' value={transferReadyLabel} />
-          <StatItem label='Your pass expiry' value={userExpiryLabel} />
         </dl>
 
         {course.listings.length > 0 && (
-          <div className='space-y-2 rounded-2xl border border-dashed border-border/60 bg-muted/30 p-4 text-xs'>
-            <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
-              Active listings
+          <div className='space-y-2 rounded-lg border border-border/30 bg-muted/20 p-3 text-xs'>
+            <p className='font-semibold uppercase tracking-wider text-muted-foreground'>
+              Active Offers
             </p>
-            <div className='space-y-1'>
-              {course.listings.map(listing => (
+            <div className='space-y-1.5'>
+              {course.listings.slice(0, 2).map(listing => (
                 <div
                   key={`${listing.seller}-${listing.listedAt.toString()}`}
-                  className='flex flex-wrap items-center justify-between gap-2 text-muted-foreground'
+                  className='flex items-center justify-between rounded-md bg-card/50 px-2 py-1.5'
                 >
-                  <span className='font-mono text-[0.7rem] text-foreground'>
+                  <span className='font-mono text-[0.65rem] text-foreground'>
                     {shortenAddress(listing.seller)}
                   </span>
-                  <span>
-                    {formatUSDC(listing.priceUSDC)} •{' '}
-                    {listing.expiresAt === 0n
-                      ? 'No expiry'
-                      : `Expires ${formatTimestampRelative(listing.expiresAt)}`}
+                  <span className='font-semibold text-foreground'>
+                    {formatUSDC(listing.priceUSDC)}
                   </span>
                 </div>
               ))}
+              {course.listings.length > 2 && (
+                <p className='text-center text-muted-foreground'>
+                  +{course.listings.length - 2} more
+                </p>
+              )}
             </div>
           </div>
         )}
 
-        <div className='flex flex-wrap gap-2 pt-2'>
-          <Button className='flex-1' onClick={() => onBuyPrimary(course)}>
-            Buy new pass
+        <div className='grid grid-cols-2 gap-2 pt-2'>
+          <Button className='w-full' onClick={() => onBuyPrimary(course)}>
+            Buy New
           </Button>
           <Button
-            className='flex-1'
+            className='w-full'
             variant='secondary'
             disabled={course.listings.length === 0}
             onClick={() => onBuyFloor(course)}
           >
-            Buy floor
+            Buy Floor
           </Button>
           <Button
-            className='flex-1'
+            className='w-full'
             variant='outline'
             disabled={!userHasPass}
             title={listTooltip}
             onClick={() => onList(course)}
           >
-            List pass
+            List
           </Button>
           <Button
-            className='flex-1'
+            className='w-full'
             variant='ghost'
             disabled={!userHasPass}
             onClick={() => onRenew(course)}
@@ -998,39 +1028,42 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
   if (listings.length === 0) return null
 
   return (
-    <div className='space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm'>
+    <div className='space-y-5 rounded-xl border border-border/50 bg-card/80 p-6 shadow-lg backdrop-blur-sm'>
       <div>
-        <h3 className='text-lg font-semibold text-foreground'>Live listings</h3>
-        <p className='text-sm text-muted-foreground'>
-          Secondary market opportunities across all courses.
+        <h3 className='text-xl font-bold text-foreground'>Live Market</h3>
+        <p className='mt-1 text-sm text-muted-foreground'>
+          Secondary market opportunities across all courses
         </p>
       </div>
-      <ScrollArea className='h-[360px]'>
-        <div className='space-y-4 pr-4'>
+      <ScrollArea className='h-[400px]'>
+        <div className='space-y-3 pr-4'>
           {listings.map(({ listing, course }) => (
             <div
               key={`${course.courseId.toString()}-${listing.seller}-${listing.listedAt.toString()}`}
-              className='rounded-2xl border border-border/40 bg-muted/40 p-4 text-sm'
+              className='group rounded-lg border border-border/30 bg-muted/20 p-4 transition-colors hover:bg-muted/40'
             >
-              <div className='flex flex-wrap items-center justify-between gap-3'>
-                <div>
-                  <p className='font-semibold text-foreground'>
+              <div className='flex items-start justify-between gap-3'>
+                <div className='flex-1'>
+                  <p className='font-bold text-foreground'>
                     {course.title}
                   </p>
-                  <p className='text-xs text-muted-foreground'>
-                    Seller {listing.seller} • Listed{' '}
+                  <p className='mt-1 text-xs text-muted-foreground'>
+                    {shortenAddress(listing.seller)} • Listed{' '}
                     {formatTimestampRelative(listing.listedAt)}
                   </p>
+                  <p className='mt-1 text-xs text-muted-foreground'>
+                    {listing.expiresAt === 0n
+                      ? 'No expiry'
+                      : `Expires ${formatTimestampRelative(listing.expiresAt)}`}
+                  </p>
                 </div>
-                <p className='text-base font-semibold text-foreground'>
-                  {formatUSDC(listing.priceUSDC)}
-                </p>
+                <div className='flex flex-col items-end gap-1 rounded-lg bg-primary/10 px-3 py-2'>
+                  <p className='text-xs font-medium text-muted-foreground'>Price</p>
+                  <p className='text-lg font-bold text-foreground'>
+                    {formatUSDC(listing.priceUSDC)}
+                  </p>
+                </div>
               </div>
-              <p className='text-xs text-muted-foreground'>
-                {listing.expiresAt === 0n
-                  ? 'No expiry scheduled'
-                  : `Expires ${formatTimestampRelative(listing.expiresAt)}`}
-              </p>
             </div>
           ))}
         </div>
