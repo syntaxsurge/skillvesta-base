@@ -8,7 +8,7 @@ import NextTopLoader from 'nextjs-toploader'
 import { AppProviders } from '@/providers/app-providers'
 import { AppNavbar } from '@/components/layout/app-navbar'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], preload: false })
 
 export const metadata: Metadata = {
   title: 'Skillvesta',

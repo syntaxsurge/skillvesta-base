@@ -16,8 +16,6 @@ import {
 } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
-import { base } from 'viem/chains'
-import { useName } from '@coinbase/onchainkit/identity'
 
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
@@ -39,18 +37,6 @@ export function GroupAboutSection() {
   const { group, owner, isOwner, memberCount, membership, currentUser, administrators } = useGroupContext()
   const { address } = useAccount()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
-  const isPaidGroup = (group.price ?? 0) > 0
-  const ownerAddress = owner?.walletAddress as `0x${string}` | undefined
-  const { data: ownerBasename } = useName(
-    {
-      address: (ownerAddress ??
-        '0x0000000000000000000000000000000000000000') as `0x${string}`,
-      chain: base
-    },
-    {
-      enabled: !!ownerAddress
-    }
-  )
   const membershipAddress = useMemo(() => {
     const value = MEMBERSHIP_CONTRACT_ADDRESS?.trim()
     return value ? (value as `0x${string}`) : null
@@ -199,7 +185,6 @@ export function GroupAboutSection() {
 
   const creatorName =
     owner?.displayName ??
-    ownerBasename ??
     owner?.basename ??
     (owner?.walletAddress
       ? `${owner.walletAddress.slice(0, 6)}...${owner.walletAddress.slice(-4)}`
@@ -211,21 +196,10 @@ export function GroupAboutSection() {
     return administrators?.some(a => a.user._id === currentUser._id) ?? false
   }, [administrators, currentUser, isOwner])
 
-  const membershipBanner = useMemo(() => {
+  const membershipExpiryLabel = useMemo(() => {
     if (membership.status !== 'active') return null
-
-    if (isAdmin) {
-      return {
-        icon: <ShieldCheck className='mr-2 inline h-4 w-4' />,
-        message: 'Admin access stays active while you manage this community.'
-      }
-    }
-
     if (!passExpiryMs) {
-      return {
-        icon: <Calendar className='mr-2 inline h-4 w-4' />,
-        message: 'Your pass has no expiry scheduled.'
-      }
+      return 'No expiry scheduled'
     }
 
     const expirySeconds = Math.floor(passExpiryMs / 1000)
@@ -235,11 +209,8 @@ export function GroupAboutSection() {
       timeStyle: 'short'
     }).format(new Date(passExpiryMs))
 
-    return {
-      icon: <Calendar className='mr-2 inline h-4 w-4' />,
-      message: `Your pass expires ${absolute} (${relative}).`
-    }
-  }, [isAdmin, membership.status, passExpiryMs])
+    return `${absolute} (${relative})`
+  }, [membership.status, passExpiryMs])
 
   const basescanBase = BASE_CHAIN_ID === 8453 ? 'https://basescan.org' : 'https://sepolia.basescan.org'
   // Link directly to the ERC-1155 token ID page (without fragment).
@@ -329,10 +300,10 @@ export function GroupAboutSection() {
         </div>
       )}
 
-      {membershipBanner && membership.status === 'active' && (
+      {membershipExpiryLabel && membership.status === 'active' && (
         <div className='rounded-lg border border-border bg-card px-5 py-3 text-sm text-muted-foreground'>
-          {membershipBanner.icon}
-          {membershipBanner.message}
+          <Calendar className='mr-2 inline h-4 w-4' />
+          Your pass expires {membershipExpiryLabel}
         </div>
       )}
 
@@ -342,7 +313,7 @@ export function GroupAboutSection() {
         initialContent={group.description}
       />
 
-      {isPaidGroup && membershipCourseId && (
+      {membershipCourseId && (
         <div className='rounded-lg border border-border bg-card p-5'>
           <div className='space-y-3'>
             <div>

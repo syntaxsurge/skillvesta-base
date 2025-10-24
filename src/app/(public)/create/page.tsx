@@ -24,7 +24,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { CharacterCount } from '@/components/ui/character-count'
 import { api } from '@/convex/_generated/api'
 import {
   MEMBERSHIP_DURATION_SECONDS,
@@ -175,6 +174,11 @@ export default function Create() {
       return
     }
 
+    if (!registrarAddress) {
+      toast.error('Registrar contract address not configured')
+      return
+    }
+
     if (!publicClient) {
       toast.error('Blockchain client unavailable. Please try again.')
       return
@@ -205,53 +209,41 @@ export default function Create() {
         priceString !== '' ? Math.max(0, Number(priceString)) : 0
       const membershipPriceAmount =
         priceString !== '' ? parseUnits(priceString, 6) : 0n
-      const requiresMembershipRegistration = membershipPriceAmount > 0n
 
-      let courseId: bigint | null = null
+      courseIdStr = generateMembershipCourseId()
+      const courseId = BigInt(courseIdStr)
 
-      if (requiresMembershipRegistration) {
-        if (!registrarAddress) {
-          toast.error('Registrar contract address not configured')
-          return
-        }
+      // Sanity: Registrar must have marketplace configured and match env
+      const registrarMarketplace = (await publicClient.readContract({
+        address: registrarAddress,
+        abi: registrarAbi,
+        functionName: 'marketplace'
+      })) as `0x${string}`
+      if (!registrarMarketplace || registrarMarketplace === '0x0000000000000000000000000000000000000000') {
+        toast.error('Registrar is not configured with a marketplace address. Contact the admin to set it.')
+        return
+      }
 
-        courseIdStr = generateMembershipCourseId()
-        courseId = BigInt(courseIdStr)
-
-        // Sanity: Registrar must have marketplace configured and match env
-        const registrarMarketplace = (await publicClient.readContract({
+      // Preflight the registrar call so we fail fast before charging the platform fee
+      try {
+        await publicClient.simulateContract({
           address: registrarAddress,
           abi: registrarAbi,
-          functionName: 'marketplace'
-        })) as `0x${string}`
-        if (!registrarMarketplace || registrarMarketplace === '0x0000000000000000000000000000000000000000') {
-          toast.error('Registrar is not configured with a marketplace address. Contact the admin to set it.')
-          return
-        }
-
-        // Preflight the registrar call so we fail fast before charging the platform fee
-        try {
-          await publicClient.simulateContract({
-            address: registrarAddress,
-            abi: registrarAbi,
-            functionName: 'registerCourse',
-            args: [
-              courseId,
-              membershipPriceAmount,
-              [address as `0x${string}`],
-              [10000],
-              BigInt(MEMBERSHIP_DURATION_SECONDS),
-              BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
-            ],
-            account: address as `0x${string}`
-          })
-        } catch (err: any) {
-          console.error('Preflight registerCourse failed', err)
-          toast.error(err?.shortMessage ?? 'Registrar rejected course registration. Check configuration.')
-          return
-        }
-      } else {
-        courseIdStr = `free:${generateMembershipCourseId()}`
+          functionName: 'registerCourse',
+          args: [
+            courseId,
+            membershipPriceAmount,
+            [address as `0x${string}`],
+            [10000],
+            BigInt(MEMBERSHIP_DURATION_SECONDS),
+            BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+          ],
+          account: address as `0x${string}`
+        })
+      } catch (err: any) {
+        console.error('Preflight registerCourse failed', err)
+        toast.error(err?.shortMessage ?? 'Registrar rejected course registration. Check configuration.')
+        return
       }
 
       // Platform fee payment (after preflight so we don’t charge if wiring is broken)
@@ -265,22 +257,20 @@ export default function Create() {
       txHash = hash
       await publicClient.waitForTransactionReceipt({ hash })
 
-      if (requiresMembershipRegistration && courseId && registrarAddress) {
-        const registerHash = await writeContractAsync({
-          address: registrarAddress,
-          abi: registrarAbi,
-          functionName: 'registerCourse',
-          args: [
-            courseId,
-            membershipPriceAmount,
-            [address as `0x${string}`],
-            [10000],
-            BigInt(MEMBERSHIP_DURATION_SECONDS),
-            BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
-          ]
-        })
-        await publicClient.waitForTransactionReceipt({ hash: registerHash })
-      }
+      const registerHash = await writeContractAsync({
+        address: registrarAddress,
+        abi: registrarAbi,
+        functionName: 'registerCourse',
+        args: [
+          courseId,
+          membershipPriceAmount,
+          [address as `0x${string}`],
+          [10000],
+          BigInt(MEMBERSHIP_DURATION_SECONDS),
+          BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+        ]
+      })
+      await publicClient.waitForTransactionReceipt({ hash: registerHash })
 
       const thumbnailSource = normalizeMediaInput(values.thumbnailUrl)
 
@@ -296,7 +286,7 @@ export default function Create() {
       const resolvedVisibility =
         values.billingCadence === 'monthly' ? 'private' : values.visibility
 
-      if (requiresMembershipRegistration && !courseIdStr) {
+      if (!courseIdStr) {
         throw new Error('Failed to generate membership course id.')
       }
 
@@ -313,7 +303,7 @@ export default function Create() {
         billingCadence:
           formattedPrice > 0 ? 'monthly' : values.billingCadence,
         price: formattedPrice,
-        subscriptionId: courseIdStr ?? undefined
+        subscriptionId: courseIdStr
       } as any)
 
       toast.success('Your group is live!')
@@ -341,7 +331,7 @@ export default function Create() {
         {/* Header */}
         <div className='mb-12 text-center'>
           <div className='mb-6 flex justify-center'>
-            <Logo />
+            <Logo width={180} height={40} />
           </div>
           <h1 className='mb-4 text-5xl font-bold tracking-tight text-foreground md:text-6xl'>
             Launch your community
@@ -375,7 +365,7 @@ export default function Create() {
               { icon: '🚀', title: 'Drive Engagement', desc: 'Keep your community active' },
               { icon: '💖', title: 'Easy Setup', desc: 'Launch in minutes' },
               { icon: '💸', title: 'Monetize', desc: 'Base-native payments' },
-              { icon: '🖥️', title: 'Browser First', desc: 'Polished desktop experience' },
+              { icon: '📱', title: 'Mobile Ready', desc: 'iOS & Android apps' },
               { icon: '🌍', title: 'Global Reach', desc: 'Connect worldwide' },
               { icon: '🎓', title: 'Course Builder', desc: 'Built-in classroom' }
             ].map((feature, i) => (
@@ -411,11 +401,9 @@ export default function Create() {
                         <Input
                           placeholder='e.g., AI Automation Society'
                           className='h-12'
-                          maxLength={80}
                           {...field}
                         />
                       </FormControl>
-                      <CharacterCount value={field.value} maxLength={80} className='mt-1' />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -431,15 +419,9 @@ export default function Create() {
                         <Textarea
                           rows={4}
                           placeholder='Describe what makes your community special...'
-                          maxLength={200}
                           {...field}
                         />
                       </FormControl>
-                      <CharacterCount
-                        value={field.value}
-                        maxLength={200}
-                        className='mt-1'
-                      />
                       <FormMessage />
                     </FormItem>
                   )}

@@ -1,9 +1,12 @@
 'use client'
 
-import { Avatar as OnchainAvatar, Name as OnchainName, useName } from '@coinbase/onchainkit/identity'
+import {
+  Avatar as OnchainAvatar,
+  Identity as OnchainIdentity,
+  Name as OnchainName
+} from '@coinbase/onchainkit/identity'
 import { format } from 'date-fns'
 import { Calendar } from 'lucide-react'
-import { base } from 'viem/chains'
 
 import type { Doc } from '@/convex/_generated/dataModel'
 
@@ -18,35 +21,21 @@ export function GroupMemberCard({ member }: GroupMemberCardProps) {
   const joinedAt = format(member._creationTime, 'MMM dd, yyyy')
   const isOwner = group.ownerId === member._id
   const walletAddress = member.walletAddress as `0x${string}`
-  const { data: resolvedName } = useName(
-    {
-      address: walletAddress,
-      chain: base
-    },
-    {
-      enabled: !!walletAddress
-    }
-  )
-  const basename = resolvedName ?? member.basename ?? null
 
   return (
     <article className='flex items-start gap-4 rounded-xl border border-border bg-card p-5'>
-      <OnchainAvatar address={walletAddress} chain={base} className='h-14 w-14 rounded-full' />
+      <OnchainAvatar address={walletAddress} className='h-14 w-14 rounded-full' />
 
       <div className='flex-1 space-y-2'>
         <div className='flex items-start justify-between gap-4'>
           <div>
-            {member.displayName ? (
-              <p className='text-base font-bold text-foreground'>{member.displayName}</p>
-            ) : (
-              <OnchainName
-                address={walletAddress}
-                chain={base}
-                className='text-base font-bold text-foreground'
-              />
-            )}
-            {basename && (!member.displayName || basename !== member.displayName) && (
-              <p className='text-sm text-muted-foreground'>@{basename}</p>
+            <p className='text-base font-bold text-foreground'>
+              {member.displayName ?? member.walletAddress}
+            </p>
+            {member.basename && (
+              <p className='text-sm text-muted-foreground'>
+                @{member.basename}
+              </p>
             )}
             {isOwner && (
               <span className='mt-1 inline-block rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-foreground'>

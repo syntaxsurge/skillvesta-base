@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { CharacterCount } from '@/components/ui/character-count'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { useApiMutation } from '@/hooks/use-api-mutation'
@@ -43,7 +42,7 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
 
     await createPost({
       title: title.trim(),
-      content: content.trim() ? content.trim() : undefined,
+      content: content.trim(),
       groupId,
       address
     })
@@ -72,24 +71,18 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
         </DialogHeader>
 
         <div className='space-y-4'>
-          <div>
-            <Input
-              placeholder='Post title'
-              value={title}
-              onChange={event => setTitle(event.target.value)}
-              autoFocus
-            />
-            <CharacterCount value={title} className='mt-1' />
-          </div>
-          <div>
-            <Textarea
-              placeholder='What would you like to share?'
-              value={content}
-              onChange={event => setContent(event.target.value)}
-              rows={6}
-            />
-            <CharacterCount value={content} className='mt-1' />
-          </div>
+          <Input
+            placeholder='Post title'
+            value={title}
+            onChange={event => setTitle(event.target.value)}
+            autoFocus
+          />
+          <Textarea
+            placeholder='What would you like to share?'
+            value={content}
+            onChange={event => setContent(event.target.value)}
+            rows={6}
+          />
         </div>
 
         <div className='flex justify-end gap-3'>
