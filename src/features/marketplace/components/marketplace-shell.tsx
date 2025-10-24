@@ -21,24 +21,33 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { getCourseCatalog, type CourseCatalogItem } from '@/lib/catalog/courses'
 import { api } from '@/convex/_generated/api'
+import { getCourseCatalog, type CourseCatalogItem } from '@/lib/catalog/courses'
 import {
   MARKETPLACE_CONTRACT_ADDRESS,
   MEMBERSHIP_CONTRACT_ADDRESS,
   PLATFORM_TREASURY_ADDRESS
 } from '@/lib/config'
-import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import {
   MarketplaceService,
   MembershipPassService,
   type MarketplaceListing
 } from '@/lib/onchain/services'
-import { SUBSCRIPTION_PRICE_LABEL, SUBSCRIPTION_PRICE_USDC } from '@/lib/pricing'
+import {
+  SUBSCRIPTION_PRICE_LABEL,
+  SUBSCRIPTION_PRICE_USDC
+} from '@/lib/pricing'
 import { formatDurationShort, formatTimestampRelative } from '@/lib/time'
 import { formatUSDC } from '@/lib/usdc'
+import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
 const DEFAULT_LISTING_DURATION = 60n * 60n * 24n * 3n // 3 days
 const LISTING_DURATION_CHOICES: { label: string; value: bigint }[] = [
@@ -70,7 +79,6 @@ type ExpiryFilter = 'any' | '7d' | '30d' | 'no-expiry'
 type Filters = {
   search: string
   expiry: ExpiryFilter
-  onlyListings: boolean
 }
 
 function serializeError(error: unknown) {
@@ -98,8 +106,7 @@ function serializeError(error: unknown) {
 
 const defaultFilters: Filters = {
   search: '',
-  expiry: 'any',
-  onlyListings: false
+  expiry: 'any'
 }
 
 function toListingExpirySeconds(listing: MarketplaceListing): number | null {
@@ -115,7 +122,10 @@ function getNextListingExpiry(listings: MarketplaceListing[]): number | null {
     .map(toListingExpirySeconds)
     .filter((value): value is number => value !== null && value > now)
   if (futureExpiries.length === 0) return null
-  return futureExpiries.reduce((min, value) => (value < min ? value : min), futureExpiries[0])
+  return futureExpiries.reduce(
+    (min, value) => (value < min ? value : min),
+    futureExpiries[0]
+  )
 }
 
 function shortenAddress(address: string) {
@@ -123,16 +133,14 @@ function shortenAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-export function MarketplaceShell() {
+export function useMarketplaceCore() {
   const catalog = useMemo(() => getCourseCatalog(), [])
   const { address } = useAccount()
-  // Fetch groups owned by or associated with the current wallet to discover dynamic courseIds
   const myGroups = useConvexQuery(
     api.groups.list,
     address ? { address } : { address: undefined }
   ) as any[] | undefined
 
-  // Extend catalog with dynamic entries sourced from groups (subscriptionId)
   const dynamicCatalog = useMemo<CourseCatalogItem[]>(() => {
     const extras: CourseCatalogItem[] = []
     const seen = new Set<string>(catalog.map(c => c.courseId.toString()))
@@ -161,10 +169,12 @@ export function MarketplaceShell() {
     return [...catalog, ...extras]
   }, [catalog, myGroups])
 
-  const [filters, setFilters] = useState<Filters>(defaultFilters)
-  const [listDialog, setListDialog] = useState<{ open: boolean; course?: MarketplaceCourse }>(
-    { open: false }
-  )
+  const [listDialog, setListDialog] = useState<{
+    open: boolean
+    course?: MarketplaceCourse
+  }>({
+    open: false
+  })
 
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const { data: walletClient } = useWalletClient()
@@ -189,7 +199,8 @@ export function MarketplaceShell() {
   }, [publicClient, membershipAddress])
 
   const writableMarketplace = useMemo(() => {
-    if (!publicClient || !walletClient || !marketplaceAddress || !address) return null
+    if (!publicClient || !walletClient || !marketplaceAddress || !address)
+      return null
     return new MarketplaceService({
       publicClient: publicClient as any,
       walletClient,
@@ -199,7 +210,8 @@ export function MarketplaceShell() {
   }, [publicClient, walletClient, marketplaceAddress, address])
 
   const writableMembership = useMemo(() => {
-    if (!publicClient || !walletClient || !membershipAddress || !address) return null
+    if (!publicClient || !walletClient || !membershipAddress || !address)
+      return null
     return new MembershipPassService({
       publicClient: publicClient as any,
       walletClient,
@@ -209,7 +221,13 @@ export function MarketplaceShell() {
   }, [publicClient, walletClient, membershipAddress, address])
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['marketplace-feed', marketplaceAddress, membershipAddress, address, dynamicCatalog.map(c=>c.courseId.toString()).join(',')],
+    queryKey: [
+      'marketplace-feed',
+      marketplaceAddress,
+      membershipAddress,
+      address,
+      dynamicCatalog.map(c => c.courseId.toString()).join(',')
+    ],
     enabled: Boolean(readOnlyMarketplace && readOnlyMembership),
     queryFn: async (): Promise<MarketplaceCourse[]> => {
       if (!readOnlyMarketplace || !readOnlyMembership) return []
@@ -240,7 +258,8 @@ export function MarketplaceShell() {
             }
 
             const floor = listings.reduce<bigint | null>((lowest, listing) => {
-              if (!lowest || listing.priceUSDC < lowest) return listing.priceUSDC
+              if (!lowest || listing.priceUSDC < lowest)
+                return listing.priceUSDC
               return lowest
             }, null)
 
@@ -266,51 +285,11 @@ export function MarketplaceShell() {
         })
       )
 
-      return results.filter((entry): entry is MarketplaceCourse => entry !== null)
-    }
-  })
-
-  const filteredCourses = useMemo(() => {
-    if (!data) return []
-    const term = filters.search.trim().toLowerCase()
-    const nowSeconds = Math.floor(Date.now() / 1000)
-    const windowSeconds =
-      filters.expiry === '7d' ? 7 * 86_400 : filters.expiry === '30d' ? 30 * 86_400 : null
-
-    const matchesSearch = (entry: MarketplaceCourse) => {
-      if (!term) return true
-      return (
-        entry.catalog.title.toLowerCase().includes(term) ||
-        entry.catalog.summary.toLowerCase().includes(term) ||
-        entry.catalog.tags.some(tag => tag.toLowerCase().includes(term))
+      return results.filter(
+        (entry): entry is MarketplaceCourse => entry !== null
       )
     }
-
-    const matchesExpiry = (entry: MarketplaceCourse) => {
-      if (filters.expiry === 'any') return true
-      if (entry.listings.length === 0) return false
-
-      if (filters.expiry === 'no-expiry') {
-        return entry.listings.some(listing => listing.expiresAt === 0n)
-      }
-
-      if (!windowSeconds) return true
-
-      return entry.listings.some(listing => {
-        if (listing.expiresAt === 0n) return false
-        const expirySeconds = Number(listing.expiresAt)
-        if (!Number.isFinite(expirySeconds)) return false
-        if (expirySeconds <= nowSeconds) return false
-        return expirySeconds - nowSeconds <= windowSeconds
-      })
-    }
-
-    return data.filter(entry => {
-      if (filters.onlyListings && entry.stats.listingCount === 0) return false
-      if (!matchesExpiry(entry)) return false
-      return matchesSearch(entry)
-    })
-  }, [data, filters])
+  })
 
   const ownedCourses = useMemo(() => {
     const entries = (data ?? []).filter(course => course.user?.hasPass)
@@ -320,7 +299,9 @@ export function MarketplaceShell() {
   }, [data])
 
   useEffect(() => {
-    const ownedIds = ownedCourses.map(course => course.catalog.courseId.toString())
+    const ownedIds = ownedCourses.map(course =>
+      course.catalog.courseId.toString()
+    )
     const groups = (myGroups ?? []).map(group => ({
       id: group?._id,
       subscriptionId: group?.subscriptionId
@@ -332,6 +313,7 @@ export function MarketplaceShell() {
       myGroupSubscriptions: groups
     })
   }, [address, data, myGroups, ownedCourses])
+
   const preferredCourse = useMemo(
     () =>
       ownedCourses.find(course => course.user?.canTransfer) ?? ownedCourses[0],
@@ -344,9 +326,7 @@ export function MarketplaceShell() {
     if (course.user?.hasPass && course.user.canTransfer === false) {
       const availableAt = course.user.transferAvailableAt
       const availabilityLabel =
-        availableAt === 0n
-          ? 'soon'
-          : formatTimestampRelative(availableAt)
+        availableAt === 0n ? 'soon' : formatTimestampRelative(availableAt)
       toast.info(
         availableAt === 0n
           ? 'Transfer cooldown is still settling. Try again shortly.'
@@ -446,9 +426,7 @@ export function MarketplaceShell() {
     if (payload.course.user && !payload.course.user.canTransfer) {
       const availableAt = payload.course.user.transferAvailableAt
       const availabilityLabel =
-        availableAt === 0n
-          ? 'soon'
-          : formatTimestampRelative(availableAt)
+        availableAt === 0n ? 'soon' : formatTimestampRelative(availableAt)
       toast.info(
         availableAt === 0n
           ? 'Transfer cooldown is still settling. Try again shortly.'
@@ -487,10 +465,95 @@ export function MarketplaceShell() {
     }
   }
 
+  return {
+    address,
+    data,
+    isLoading,
+    refetch,
+    ownedCourses,
+    preferredCourse,
+    listDialog,
+    openListDialog,
+    closeListDialog,
+    handleListFromHero,
+    handlePrimaryPurchase,
+    handleBuyFloor,
+    handleRenew,
+    handleCreateListing,
+    contractsConfigured
+  }
+}
+
+export function MarketplaceShell() {
+  const {
+    data,
+    isLoading,
+    ownedCourses,
+    listDialog,
+    openListDialog,
+    closeListDialog,
+    handleListFromHero,
+    handlePrimaryPurchase,
+    handleBuyFloor,
+    handleRenew,
+    handleCreateListing,
+    contractsConfigured
+  } = useMarketplaceCore()
+
+  const [filters, setFilters] = useState<Filters>(defaultFilters)
+
+  const filteredCourses = useMemo(() => {
+    if (!data) return []
+    const term = filters.search.trim().toLowerCase()
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const windowSeconds =
+      filters.expiry === '7d'
+        ? 7 * 86_400
+        : filters.expiry === '30d'
+          ? 30 * 86_400
+          : null
+
+    const matchesSearch = (entry: MarketplaceCourse) => {
+      if (!term) return true
+      return (
+        entry.catalog.title.toLowerCase().includes(term) ||
+        entry.catalog.summary.toLowerCase().includes(term) ||
+        entry.catalog.tags.some(tag => tag.toLowerCase().includes(term))
+      )
+    }
+
+    const matchesExpiry = (entry: MarketplaceCourse) => {
+      if (filters.expiry === 'any') return true
+      if (entry.listings.length === 0) return false
+
+      if (filters.expiry === 'no-expiry') {
+        return entry.listings.some(listing => listing.expiresAt === 0n)
+      }
+
+      if (!windowSeconds) return true
+
+      return entry.listings.some(listing => {
+        if (listing.expiresAt === 0n) return false
+        const expirySeconds = Number(listing.expiresAt)
+        if (!Number.isFinite(expirySeconds)) return false
+        if (expirySeconds <= nowSeconds) return false
+        return expirySeconds - nowSeconds <= windowSeconds
+      })
+    }
+
+    return data.filter(entry => {
+      if (entry.stats.listingCount === 0) return false
+      if (!matchesExpiry(entry)) return false
+      return matchesSearch(entry)
+    })
+  }, [data, filters])
+
   if (!contractsConfigured) {
     return (
       <section className='mx-auto flex max-w-3xl flex-col gap-4 px-6 py-16 text-center'>
-        <h1 className='text-3xl font-semibold text-foreground'>Marketplace not configured</h1>
+        <h1 className='text-3xl font-semibold text-foreground'>
+          Marketplace not configured
+        </h1>
         <p className='text-muted-foreground'>
           Provide marketplace and membership contract addresses via environment
           variables to enable this view.
@@ -502,29 +565,41 @@ export function MarketplaceShell() {
   return (
     <section className='mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12'>
       <Hero
-        listingCount={data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0}
+        listingCount={
+          data?.reduce((acc, item) => acc + item.stats.listingCount, 0) ?? 0
+        }
         canList={ownedCourses.length > 0}
         onListPass={handleListFromHero}
       />
 
       <div className='flex flex-col gap-8 lg:flex-row'>
         <aside className='w-full max-w-sm flex-shrink-0 space-y-6 rounded-3xl border border-border/60 bg-background/70 p-6 shadow-sm backdrop-blur'>
-          <FilterControls
-            filters={filters}
-            onChange={setFilters}
-            listingCount={data?.reduce((acc, row) => acc + row.stats.listingCount, 0) ?? 0}
-          />
+          <FilterControls filters={filters} onChange={setFilters} />
 
           <Separator />
 
           <div className='space-y-2 text-sm'>
-            <p className='text-xs uppercase tracking-wide text-muted-foreground'>Primary price</p>
-            <p className='text-lg font-semibold text-foreground'>{SUBSCRIPTION_PRICE_LABEL}</p>
-            <p className='text-xs text-muted-foreground'>Settlement asset: USDC (Base)</p>
-            <p className='pt-2 text-xs text-muted-foreground'>Treasury address</p>
-            <p className='break-all text-sm text-foreground'>{PLATFORM_TREASURY_ADDRESS}</p>
-            <p className='pt-2 text-xs text-muted-foreground'>Marketplace contract</p>
-            <p className='break-all text-sm text-foreground'>{MARKETPLACE_CONTRACT_ADDRESS}</p>
+            <p className='text-xs uppercase tracking-wide text-muted-foreground'>
+              Primary price
+            </p>
+            <p className='text-lg font-semibold text-foreground'>
+              {SUBSCRIPTION_PRICE_LABEL}
+            </p>
+            <p className='text-xs text-muted-foreground'>
+              Settlement asset: USDC (Base)
+            </p>
+            <p className='pt-2 text-xs text-muted-foreground'>
+              Treasury address
+            </p>
+            <p className='break-all text-sm text-foreground'>
+              {PLATFORM_TREASURY_ADDRESS}
+            </p>
+            <p className='pt-2 text-xs text-muted-foreground'>
+              Marketplace contract
+            </p>
+            <p className='break-all text-sm text-foreground'>
+              {MARKETPLACE_CONTRACT_ADDRESS}
+            </p>
           </div>
         </aside>
 
@@ -536,12 +611,10 @@ export function MarketplaceShell() {
             </div>
           )}
 
-          {!isLoading && ownedCourses.length > 0 && (
-            <OwnedPassesCard passes={ownedCourses} onList={openListDialog} />
-          )}
-
           {!isLoading && filteredCourses.length === 0 && (
-            <p className='text-muted-foreground'>No courses match your filters.</p>
+            <p className='text-muted-foreground'>
+              No courses match your filters.
+            </p>
           )}
 
           {!isLoading && filteredCourses.length > 0 && (
@@ -592,8 +665,13 @@ function Hero({
         <p className='inline-flex rounded-full bg-white/10 px-4 py-1 text-xs uppercase tracking-widest text-emerald-200'>
           Skillvesta Marketplace
         </p>
-        <h1 className='text-4xl font-semibold sm:text-5xl'>Unlock, trade & renew course memberships</h1>
-        <p className='max-w-2xl text-lg text-slate-200'>Buy new passes, discover secondary listings, or renew your existing memberships with cooldown-aware transfers and platform fees baked in.</p>
+        <h1 className='text-4xl font-semibold sm:text-5xl'>
+          Unlock, trade & renew course memberships
+        </h1>
+        <p className='max-w-2xl text-lg text-slate-200'>
+          Buy new passes, discover secondary listings, or renew your existing
+          memberships with cooldown-aware transfers and platform fees baked in.
+        </p>
         <div className='flex flex-wrap gap-6 pt-2 text-sm text-slate-200'>
           <HeroStat label='Collections live' value='3+' />
           <HeroStat label='Active listings' value={String(listingCount)} />
@@ -625,11 +703,9 @@ function HeroStat({ label, value }: { label: string; value: string }) {
 
 function FilterControls({
   filters,
-  listingCount,
   onChange
 }: {
   filters: Filters
-  listingCount: number
   onChange: (filters: Filters) => void
 }) {
   return (
@@ -641,7 +717,9 @@ function FilterControls({
           className='mt-2'
           placeholder='Search courses or tags'
           value={filters.search}
-          onChange={event => onChange({ ...filters, search: event.target.value })}
+          onChange={event =>
+            onChange({ ...filters, search: event.target.value })
+          }
         />
       </div>
 
@@ -649,7 +727,9 @@ function FilterControls({
         <Label htmlFor='marketplace-expiry'>Listing expiration</Label>
         <Select
           value={filters.expiry}
-          onValueChange={value => onChange({ ...filters, expiry: value as ExpiryFilter })}
+          onValueChange={value =>
+            onChange({ ...filters, expiry: value as ExpiryFilter })
+          }
         >
           <SelectTrigger id='marketplace-expiry'>
             <SelectValue placeholder='Any expiration' />
@@ -662,25 +742,15 @@ function FilterControls({
           </SelectContent>
         </Select>
         <p className='text-xs text-muted-foreground'>
-          Filter courses by when their live listings expire. Choose &ldquo;No scheduled expiry&rdquo; to
-          see listings without a set end date.
+          Filter courses by when their live listings expire. Choose &ldquo;No
+          scheduled expiry&rdquo; to see listings without a set end date.
         </p>
       </div>
-
-      <label className='flex items-center gap-3 text-sm'>
-        <input
-          type='checkbox'
-          className='h-4 w-4 rounded border-border'
-          checked={filters.onlyListings}
-          onChange={event => onChange({ ...filters, onlyListings: event.target.checked })}
-        />
-        Only show courses with live listings ({listingCount})
-      </label>
     </div>
   )
 }
 
-function OwnedPassesCard({
+export function OwnedPassesCard({
   passes,
   onList
 }: {
@@ -690,9 +760,12 @@ function OwnedPassesCard({
   return (
     <div className='space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm'>
       <div>
-        <h3 className='text-lg font-semibold text-foreground'>My memberships</h3>
+        <h3 className='text-lg font-semibold text-foreground'>
+          My memberships
+        </h3>
         <p className='text-sm text-muted-foreground'>
-          Active passes linked to your wallet. Cooldown timing shows when secondary listing unlocks.
+          Active passes linked to your wallet. Cooldown timing shows when
+          secondary listing unlocks.
         </p>
       </div>
       <div className='space-y-3'>
@@ -701,10 +774,10 @@ function OwnedPassesCard({
           const transferStatus = userState?.canTransfer
             ? 'Ready to transfer'
             : userState
-            ? userState.transferAvailableAt === 0n
-              ? 'Cooldown settling'
-              : `Cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}`
-            : 'Not available'
+              ? userState.transferAvailableAt === 0n
+                ? 'Cooldown settling'
+                : `Cooldown ends ${formatTimestampRelative(userState.transferAvailableAt)}`
+              : 'Not available'
           const expiryStatus = userState
             ? userState.expiresAt === 0n
               ? 'No expiry scheduled'
@@ -762,8 +835,8 @@ function CourseCard({
     course.listings.length === 0
       ? '—'
       : nextListingExpiry
-      ? formatTimestampRelative(nextListingExpiry)
-      : 'No expiry'
+        ? formatTimestampRelative(nextListingExpiry)
+        : 'No expiry'
   const userState = course.user
   const userHasPass = Boolean(userState?.hasPass)
   const transferReadyLabel = userState?.hasPass
@@ -771,7 +844,9 @@ function CourseCard({
       ? 'Now'
       : formatTimestampRelative(userState.transferAvailableAt)
     : '—'
-  const userExpiryLabel = userState?.hasPass ? formatTimestampRelative(userState.expiresAt) : '—'
+  const userExpiryLabel = userState?.hasPass
+    ? formatTimestampRelative(userState.expiresAt)
+    : '—'
   const listTooltip = !userHasPass
     ? 'Mint a membership pass before listing.'
     : userState && !userState.canTransfer
@@ -780,7 +855,9 @@ function CourseCard({
 
   return (
     <div className='flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/80 shadow-sm backdrop-blur'>
-      <div className={`h-32 rounded-t-3xl bg-gradient-to-r ${course.catalog.coverGradient}`} />
+      <div
+        className={`h-32 rounded-t-3xl bg-gradient-to-r ${course.catalog.coverGradient}`}
+      />
       <div className='flex flex-1 flex-col gap-4 px-6 py-6'>
         <div className='flex items-start justify-between gap-3'>
           <div>
@@ -790,32 +867,55 @@ function CourseCard({
             <h2 className='mt-1 text-xl font-semibold text-foreground'>
               {course.catalog.title}
             </h2>
-            <p className='text-sm text-muted-foreground'>{course.catalog.subtitle}</p>
+            <p className='text-sm text-muted-foreground'>
+              {course.catalog.subtitle}
+            </p>
           </div>
           <div className='text-right text-sm'>
             <p className='text-xs text-muted-foreground'>Primary price</p>
-            <p className='font-semibold text-foreground'>{formatUSDC(course.stats.primaryPrice)}</p>
+            <p className='font-semibold text-foreground'>
+              {formatUSDC(course.stats.primaryPrice)}
+            </p>
             {course.floorPrice && (
-              <p className='text-xs text-muted-foreground'>Floor {formatUSDC(course.floorPrice)}</p>
+              <p className='text-xs text-muted-foreground'>
+                Floor {formatUSDC(course.floorPrice)}
+              </p>
             )}
           </div>
         </div>
 
-        <p className='text-sm text-muted-foreground'>{course.catalog.summary}</p>
+        <p className='text-sm text-muted-foreground'>
+          {course.catalog.summary}
+        </p>
 
         <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
           {tags.map(tag => (
-            <span key={tag} className='rounded-full border border-border px-3 py-1'>
+            <span
+              key={tag}
+              className='rounded-full border border-border px-3 py-1'
+            >
               {tag}
             </span>
           ))}
         </div>
 
         <dl className='grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-2'>
-          <StatItem label='Live listings' value={String(course.stats.listingCount)} />
-          <StatItem label='Membership duration' value={formatDurationShort(course.stats.duration)} />
-          <StatItem label='Transfer cooldown' value={formatDurationShort(course.stats.cooldown)} />
-          <StatItem label='Next listing expiry' value={nextListingExpiryLabel} />
+          <StatItem
+            label='Live listings'
+            value={String(course.stats.listingCount)}
+          />
+          <StatItem
+            label='Membership duration'
+            value={formatDurationShort(course.stats.duration)}
+          />
+          <StatItem
+            label='Transfer cooldown'
+            value={formatDurationShort(course.stats.cooldown)}
+          />
+          <StatItem
+            label='Next listing expiry'
+            value={nextListingExpiryLabel}
+          />
           <StatItem label='Transfer ready' value={transferReadyLabel} />
           <StatItem label='Your pass expiry' value={userExpiryLabel} />
         </dl>
@@ -901,7 +1001,9 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
     <div className='space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm'>
       <div>
         <h3 className='text-lg font-semibold text-foreground'>Live listings</h3>
-        <p className='text-sm text-muted-foreground'>Secondary market opportunities across all courses.</p>
+        <p className='text-sm text-muted-foreground'>
+          Secondary market opportunities across all courses.
+        </p>
       </div>
       <ScrollArea className='h-[360px]'>
         <div className='space-y-4 pr-4'>
@@ -912,9 +1014,12 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
             >
               <div className='flex flex-wrap items-center justify-between gap-3'>
                 <div>
-                  <p className='font-semibold text-foreground'>{course.title}</p>
+                  <p className='font-semibold text-foreground'>
+                    {course.title}
+                  </p>
                   <p className='text-xs text-muted-foreground'>
-                    Seller {listing.seller} • Listed {formatTimestampRelative(listing.listedAt)}
+                    Seller {listing.seller} • Listed{' '}
+                    {formatTimestampRelative(listing.listedAt)}
                   </p>
                 </div>
                 <p className='text-base font-semibold text-foreground'>
@@ -934,7 +1039,7 @@ function LiveListings({ data }: { data: MarketplaceCourse[] }) {
   )
 }
 
-function ListDialog({
+export function ListDialog({
   state,
   onClose,
   onSubmit,
@@ -942,13 +1047,19 @@ function ListDialog({
 }: {
   state: { open: boolean; course?: MarketplaceCourse }
   onClose: () => void
-  onSubmit: (payload: { price: string; duration: bigint; course: MarketplaceCourse }) => Promise<void>
+  onSubmit: (payload: {
+    price: string
+    duration: bigint
+    course: MarketplaceCourse
+  }) => Promise<void>
   eligibleCourses: MarketplaceCourse[]
 }) {
   const [price, setPrice] = useState(SUBSCRIPTION_PRICE_USDC)
   const [duration, setDuration] = useState<bigint>(DEFAULT_LISTING_DURATION)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedCourse, setSelectedCourse] = useState<MarketplaceCourse | undefined>(state.course)
+  const [selectedCourse, setSelectedCourse] = useState<
+    MarketplaceCourse | undefined
+  >(state.course)
 
   useEffect(() => {
     if (state.open) {
@@ -1001,6 +1112,7 @@ function ListDialog({
     }
     return null
   })()
+  const showCooldownNotice = !transferReady && typeof cooldownLabel === 'string'
 
   return (
     <Dialog open={state.open} onOpenChange={open => (!open ? onClose() : null)}>
@@ -1008,7 +1120,8 @@ function ListDialog({
         <DialogHeader>
           <DialogTitle>List membership for sale</DialogTitle>
           <DialogDescription>
-            Set your price and listing duration. Marketplace fees apply on settlement.
+            Set your price and listing duration. Marketplace fees apply on
+            settlement.
           </DialogDescription>
         </DialogHeader>
 
@@ -1040,7 +1153,9 @@ function ListDialog({
           <div className='rounded-2xl bg-muted/40 p-4 text-sm'>
             {selectedCourse ? (
               <>
-                <p className='font-medium text-foreground'>{selectedCourse.catalog.title}</p>
+                <p className='font-medium text-foreground'>
+                  {selectedCourse.catalog.title}
+                </p>
                 <p className='text-muted-foreground'>
                   Transfer status {transferStatus ?? 'unavailable'}
                 </p>
@@ -1050,16 +1165,11 @@ function ListDialog({
                 <p className='text-muted-foreground'>
                   Cooldown {formatDurationShort(selectedCourse.stats.cooldown)}
                 </p>
-                {!transferReady && cooldownLabel && (
-                  <p className='text-xs text-amber-600 dark:text-amber-400'>
-                    {cooldownLabel}
-                  </p>
-                )}
               </>
             ) : (
               <p className='text-muted-foreground'>
-                No memberships are ready to list. Mint a pass or wait for the transfer cooldown to
-                end.
+                No memberships are ready to list. Mint a pass or wait for the
+                transfer cooldown to end.
               </p>
             )}
           </div>
@@ -1087,7 +1197,10 @@ function ListDialog({
               </SelectTrigger>
               <SelectContent>
                 {LISTING_DURATION_CHOICES.map(option => (
-                  <SelectItem key={option.label} value={option.value.toString()}>
+                  <SelectItem
+                    key={option.label}
+                    value={option.value.toString()}
+                  >
                     {option.label}
                   </SelectItem>
                 ))}
@@ -1105,9 +1218,24 @@ function ListDialog({
           </Button>
         </DialogFooter>
 
-        {listingDisabledReason && (
-          <p className='pt-2 text-xs text-muted-foreground'>{listingDisabledReason}</p>
-        )}
+        {showCooldownNotice ? (
+          <div className='pt-3' aria-live='polite'>
+            <span
+              className='inline-flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive'
+              role='status'
+            >
+              <span
+                className='h-1.5 w-1.5 rounded-full bg-destructive'
+                aria-hidden='true'
+              />
+              {cooldownLabel}
+            </span>
+          </div>
+        ) : listingDisabledReason ? (
+          <p className='pt-2 text-xs text-muted-foreground'>
+            {listingDisabledReason}
+          </p>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

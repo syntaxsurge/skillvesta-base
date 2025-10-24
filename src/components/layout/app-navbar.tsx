@@ -11,6 +11,7 @@ import { ThemeToggle } from './theme-toggle'
 export function AppNavbar() {
   const pathname = usePathname()
   const isMarketplace = pathname?.startsWith('/marketplace')
+  const isMemberships = pathname?.startsWith('/memberships')
 
   return (
     <header className='relative z-40 border-b border-border bg-background/80 backdrop-blur'>
@@ -29,6 +30,16 @@ export function AppNavbar() {
             }`}
           >
             Marketplace
+          </Link>
+          <Link
+            href='/memberships'
+            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+              isMemberships
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            My memberships
           </Link>
         </div>
         <div className='flex items-center gap-2'>
