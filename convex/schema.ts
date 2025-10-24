@@ -51,7 +51,7 @@ export default defineSchema({
     .index('by_groupId', ['groupId']),
   posts: defineTable({
     title: v.string(),
-    content: v.string(),
+    content: v.optional(v.string()),
     authorId: v.id('users'),
     groupId: v.id('groups'),
     lessonId: v.optional(v.id('lessons'))

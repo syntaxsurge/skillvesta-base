@@ -39,11 +39,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**.convex.cloud'
+        hostname: '**'
       },
       {
-        protocol: 'https',
-        hostname: 'img.youtube.com'
+        protocol: 'http',
+        hostname: '**'
       }
     ]
   },

@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
+import type { Doc } from './_generated/dataModel'
 import { requireUserByWallet } from './utils'
 
 export const list = query({
@@ -71,7 +72,7 @@ export const list = query({
 export const create = mutation({
   args: {
     title: v.string(),
-    content: v.string(),
+    content: v.optional(v.string()),
     groupId: v.id('groups'),
     address: v.string()
   },
@@ -79,14 +80,10 @@ export const create = mutation({
     const user = await requireUserByWallet(ctx, address)
 
     const trimmedTitle = title.trim()
-    const trimmedContent = content.trim()
+    const trimmedContent = content?.trim() ?? ''
 
     if (!trimmedTitle) {
       throw new Error('Title is required.')
-    }
-
-    if (!trimmedContent) {
-      throw new Error('Content is required.')
     }
 
     if (trimmedContent.length > 40000) {
@@ -95,9 +92,9 @@ export const create = mutation({
 
     const postId = await ctx.db.insert('posts', {
       title: trimmedTitle,
-      content: trimmedContent,
       authorId: user._id,
-      groupId
+      groupId,
+      ...(trimmedContent ? { content: trimmedContent } : {})
     })
 
     return postId
@@ -151,7 +148,7 @@ export const updateContent = mutation({
   args: {
     id: v.id('posts'),
     title: v.string(),
-    content: v.string(),
+    content: v.optional(v.string()),
     address: v.string()
   },
   handler: async (ctx, args) => {
@@ -167,23 +164,23 @@ export const updateContent = mutation({
     }
 
     const title = args.title.trim()
-    const content = args.content.trim()
+    const trimmedContent = typeof args.content === 'string' ? args.content.trim() : undefined
 
     if (!title) {
       throw new Error('Title is required')
     }
 
-    if (!content) {
-      throw new Error('Content is required')
-    }
-
-    if (content.length > 40000) {
+    if ((trimmedContent?.length ?? 0) > 40000) {
       throw new Error('Content is too long!')
     }
 
-    await ctx.db.patch(args.id, {
-      title,
-      content
-    })
+    const patch: Partial<Doc<'posts'>> = { title }
+
+    if (typeof args.content === 'string') {
+      patch.content =
+        trimmedContent && trimmedContent.length > 0 ? trimmedContent : undefined
+    }
+
+    await ctx.db.patch(args.id, patch)
   }
 })

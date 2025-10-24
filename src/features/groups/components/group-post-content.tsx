@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 
 type GroupPostContentProps = {
-  content: string
+  content?: string | null
   className?: string
 }
 
@@ -50,7 +50,11 @@ function gatherText(node: unknown): string {
   return parts.join(' ').replace(/\s+/g, ' ').trim()
 }
 
-function toPlainText(raw: string): string {
+function toPlainText(raw: string | null | undefined): string {
+  if (!raw) {
+    return ''
+  }
+
   const trimmed = raw.trim()
 
   if (!trimmed) {

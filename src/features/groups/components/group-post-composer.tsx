@@ -42,7 +42,7 @@ export function GroupPostComposer({ groupId }: GroupPostComposerProps) {
 
     await createPost({
       title: title.trim(),
-      content: content.trim(),
+      content: content.trim() ? content.trim() : undefined,
       groupId,
       address
     })
