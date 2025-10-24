@@ -139,6 +139,11 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
         ? 'upload'
         : 'links'
   )
+  const galleryItemsRef = useRef<GalleryItem[]>(initialGalleryItems)
+
+  useEffect(() => {
+    galleryItemsRef.current = galleryItems
+  }, [galleryItems])
 
   useEffect(() => {
     if (!initialMedia) return
@@ -184,6 +189,7 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
 
     if (nextGalleryItems.length) {
       setGalleryItems(nextGalleryItems)
+      galleryItemsRef.current = nextGalleryItems
       form.setValue(
         galleryPath,
         nextGalleryItems.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
@@ -194,6 +200,7 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
       )
     } else {
       setGalleryItems([])
+      galleryItemsRef.current = []
       form.setValue(
         galleryPath,
         [] as PathValue<FormValues, Path<FormValues>>,
@@ -323,55 +330,61 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
       return
     }
 
-    if (galleryItems.length >= maxGalleryItems) {
+    const existingItems = galleryItemsRef.current
+
+    if (existingItems.length >= maxGalleryItems) {
       toast.error(`You can add up to ${maxGalleryItems} gallery assets.`)
       return
     }
 
-    setGalleryItems(prev => {
-      if (prev.some(item => item.source === trimmed)) {
-        toast.error('This asset is already in your gallery.')
-        return prev
+    if (existingItems.some(item => item.source === trimmed)) {
+      toast.error('This asset is already in your gallery.')
+      return
+    }
+
+    const nextItems = [
+      ...existingItems,
+      {
+        id: generateGalleryId(trimmed),
+        url: trimmed,
+        source: trimmed
       }
-      const next = [
-        ...prev,
-        {
-          id: generateGalleryId(trimmed),
-          url: trimmed,
-          source: trimmed
-        }
-      ]
-      form.setValue(
-        galleryPath,
-        next.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
-        { shouldDirty: true, shouldValidate: true }
-      )
-      return next
-    })
+    ]
+    setGalleryItems(nextItems)
+    galleryItemsRef.current = nextItems
+    form.setValue(
+      galleryPath,
+      nextItems.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
+      { shouldDirty: true, shouldValidate: true }
+    )
     setGalleryLinkInput('')
     setGalleryTab('links')
-  }, [form, galleryItems.length, galleryLinkInput, galleryPath, maxGalleryItems])
+  }, [form, galleryLinkInput, galleryPath, maxGalleryItems])
 
   const handleRemoveGalleryItem = useCallback(
     (id: string) => {
-      setGalleryItems(prev => {
-        const target = prev.find(item => item.id === id)
-        if (target) {
-          const index = galleryObjectUrlsRef.current.indexOf(target.url)
-          if (index >= 0) {
-            URL.revokeObjectURL(galleryObjectUrlsRef.current[index])
-            galleryObjectUrlsRef.current.splice(index, 1)
-          }
+      const currentItems = galleryItemsRef.current
+      const target = currentItems.find(item => item.id === id)
+      if (target) {
+        const index = galleryObjectUrlsRef.current.indexOf(target.url)
+        if (index >= 0) {
+          URL.revokeObjectURL(galleryObjectUrlsRef.current[index])
+          galleryObjectUrlsRef.current.splice(index, 1)
         }
+      }
 
-        const next = prev.filter(item => item.id !== id)
-        form.setValue(
-          galleryPath,
-          next.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
-          { shouldDirty: true, shouldValidate: true }
-        )
-        return next
-      })
+      const nextItems = currentItems.filter(item => item.id !== id)
+      if (nextItems.length === currentItems.length) {
+        return
+      }
+
+      setGalleryItems(nextItems)
+      galleryItemsRef.current = nextItems
+      form.setValue(
+        galleryPath,
+        nextItems.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
+        { shouldDirty: true, shouldValidate: true }
+      )
     },
     [form, galleryPath]
   )
@@ -379,8 +392,8 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
   const handleGalleryFiles = useCallback(
     async (files: File[]) => {
       if (!files.length) return
-
-      const remainingSlots = maxGalleryItems - galleryItems.length
+      const currentItems = galleryItemsRef.current
+      const remainingSlots = maxGalleryItems - currentItems.length
       if (remainingSlots <= 0) {
         toast.error(`You can add up to ${maxGalleryItems} gallery assets.`)
         return
@@ -444,19 +457,18 @@ export function GroupMediaFields<FormValues extends GroupMediaFormShape>(
         return
       }
 
-      setGalleryItems(prev => {
-        const next = [...prev, ...uploaded]
-        form.setValue(
-          galleryPath,
-          next.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
-          { shouldDirty: true, shouldValidate: true }
-        )
-        return next
-      })
+      const nextItems = [...currentItems, ...uploaded]
+      setGalleryItems(nextItems)
+      galleryItemsRef.current = nextItems
+      form.setValue(
+        galleryPath,
+        nextItems.map(item => item.source) as PathValue<FormValues, Path<FormValues>>,
+        { shouldDirty: true, shouldValidate: true }
+      )
       setGalleryTab('upload')
       toast.success('Gallery assets added.')
     },
-    [convex, form, galleryItems.length, galleryPath, maxGalleryItems, requestUploadUrl]
+    [convex, form, galleryPath, maxGalleryItems, requestUploadUrl]
   )
 
   return (

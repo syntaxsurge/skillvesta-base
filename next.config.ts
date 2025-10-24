@@ -40,6 +40,10 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '**.convex.cloud'
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com'
       }
     ]
   },
