@@ -17,27 +17,37 @@ import {
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { useAppRouter } from '@/hooks/use-app-router'
+import { useOptionalGroupContext } from '@/features/groups/context/group-context'
 
 export function GroupSwitcher() {
   const router = useAppRouter()
   const params = useParams()
   const { address } = useAccount()
+  const groupContext = useOptionalGroupContext()
 
   const [open, setOpen] = useState(false)
 
-  const activeGroupId = useMemo(() => {
-    if (!params?.groupId) return undefined
-    return params.groupId as Id<'groups'>
-  }, [params])
-
-  const activeGroup = useQuery(
-    api.groups.get,
-    activeGroupId ? { id: activeGroupId } : { id: undefined }
-  ) as Doc<'groups'> | null | undefined
   const ownedGroups = useQuery(
     api.groups.list,
     address ? { address } : { address: undefined }
   ) as Array<Doc<'groups'>> | undefined
+
+  const currentGroupId =
+    typeof params?.groupId === 'string' ? params.groupId : undefined
+
+  const activeGroup = useMemo(() => {
+    if (groupContext?.group) {
+      return groupContext.group
+    }
+
+    if (!currentGroupId || !ownedGroups) {
+      return undefined
+    }
+
+    return ownedGroups.find(
+      group => group._id === (currentGroupId as Id<'groups'>)
+    )
+  }, [currentGroupId, groupContext, ownedGroups])
 
   const handleSelect = (groupId: Id<'groups'>) => {
     router.push(`/${groupId}/about`)

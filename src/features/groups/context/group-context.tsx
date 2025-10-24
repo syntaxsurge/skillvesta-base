@@ -1,14 +1,14 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 
 import { useQuery } from 'convex/react'
 
 import { LoadingIndicator } from '@/components/feedback/loading-indicator'
+import { NotFoundView } from '@/components/empty-states/not-found-view'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { useCurrentUser } from '@/hooks/use-current-user'
-import { useAppRouter } from '@/hooks/use-app-router'
 
 function normalizeEndsOn(value: number | undefined) {
   if (!value || typeof value !== 'number') return undefined
@@ -62,6 +62,10 @@ export function useGroupContext() {
   return context
 }
 
+export function useOptionalGroupContext() {
+  return useContext(GroupContext)
+}
+
 type GroupProviderProps = {
   groupId: Id<'groups'>
   children: React.ReactNode
@@ -73,18 +77,11 @@ export function GroupProvider({
   children,
   expiredFallback
 }: GroupProviderProps) {
-  const router = useAppRouter()
   const { currentUser } = useCurrentUser()
   const viewerState = useQuery(api.groups.viewer, {
     groupId,
     viewerId: currentUser?._id
   })
-
-  useEffect(() => {
-    if (viewerState === null) {
-      router.replace('/')
-    }
-  }, [viewerState, router])
 
   const result = useMemo<
     | { status: 'loading' | 'missing' | 'expired' }
@@ -180,6 +177,17 @@ export function GroupProvider({
             </div>
           </div>
         )
+      )
+    }
+
+    if (result.status === 'missing') {
+      return (
+        <div className='flex-1 px-6 py-16'>
+          <NotFoundView
+            title='Group unavailable'
+            message='The group you requested is unavailable or may have been deleted.'
+          />
+        </div>
       )
     }
 
