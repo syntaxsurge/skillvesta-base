@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 import { useQuery } from 'convex/react'
 
@@ -10,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { GroupCard } from './group-card'
 
@@ -20,7 +20,7 @@ type DirectoryEntry = {
 }
 
 export function GroupDirectory() {
-  const router = useRouter()
+  const router = useAppRouter()
   const entries = useQuery(api.groups.directory, {}) as
     | DirectoryEntry[]
     | undefined

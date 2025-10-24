@@ -1,13 +1,12 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-
 import { useQuery } from 'convex/react'
 import { Plus } from 'lucide-react'
 
 import { LoadingIndicator } from '@/components/feedback/loading-indicator'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { CourseCard } from './course-card'
 
@@ -17,7 +16,7 @@ type CourseGridProps = {
 }
 
 export function CourseGrid({ groupId, canCreate = false }: CourseGridProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   type CourseDoc = Doc<'courses'> & { thumbnailUrl?: string }
 
   const courses = useQuery(api.courses.list, { groupId }) as

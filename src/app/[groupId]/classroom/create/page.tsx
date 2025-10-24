@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { useAccount } from 'wagmi'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { Logo } from '@/components/layout/logo'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ interface CreateCourseProps {
 }
 
 const CreateCourse = (_props: CreateCourseProps) => {
-  const router = useRouter()
+  const router = useAppRouter()
   const { mutate: create, pending } = useApiMutation(api.courses.create)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')

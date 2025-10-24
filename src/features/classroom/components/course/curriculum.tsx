@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { BookCheck, Component, Pen, Type } from 'lucide-react'
@@ -8,6 +7,7 @@ import { BookCheck, Component, Pen, Type } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { useGroupContext } from '@/features/groups/context/group-context'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { LessonView } from './lesson-view'
 
@@ -23,7 +23,7 @@ export function Curriculum({ course, groupId }: CurriculumProps) {
   type LessonDoc = Doc<'lessons'>
 
   const { isOwner } = useGroupContext()
-  const router = useRouter()
+  const router = useAppRouter()
   const [activeLesson, setActiveLesson] = useState<Doc<'lessons'> | null>(
     course.modules[0]?.lessons[0] ?? null
   )

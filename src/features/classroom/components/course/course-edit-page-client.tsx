@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useMutation, useQuery } from 'convex/react'
@@ -38,6 +37,7 @@ import { MediaDropzone } from '@/features/groups/components/media-dropzone'
 import { useApiMutation } from '@/hooks/use-api-mutation'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { useResolvedMediaUrl } from '@/hooks/use-resolved-media-url'
+import { useAppRouter } from '@/hooks/use-app-router'
 import { isStorageReference, toStorageSource } from '@/lib/media'
 import { cn } from '@/lib/utils'
 
@@ -66,7 +66,7 @@ export function CourseEditPageClient({
 
   const { currentUser, address } = useCurrentUser()
   const group = useQuery(api.groups.get, { id: groupId })
-  const router = useRouter()
+  const router = useAppRouter()
   const [selectedLesson, setSelectedLesson] = useState<Doc<'lessons'> | null>(
     null
   )

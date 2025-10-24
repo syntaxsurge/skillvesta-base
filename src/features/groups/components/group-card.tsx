@@ -1,12 +1,12 @@
 'use client'
 
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 
 import { Users } from 'lucide-react'
 
 import type { Doc } from '@/convex/_generated/dataModel'
 import { cn } from '@/lib/utils'
+import { useAppRouter } from '@/hooks/use-app-router'
 import { formatGroupPriceLabel } from '../utils/price'
 
 type GroupCardProps = {
@@ -33,7 +33,7 @@ export function GroupCard({
   memberCount,
   className
 }: GroupCardProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const memberLabel = memberCount === 1 ? 'member' : 'members'
 
   const handleNavigate = () => {

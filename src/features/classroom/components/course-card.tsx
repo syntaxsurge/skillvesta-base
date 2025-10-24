@@ -1,12 +1,12 @@
 'use client'
 
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 
 import { BookOpen, ChevronRight } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { useAppRouter } from '@/hooks/use-app-router'
 import { useResolvedMediaUrl } from '@/hooks/use-resolved-media-url'
 
 type CourseCardProps = {
@@ -15,7 +15,7 @@ type CourseCardProps = {
 }
 
 export function CourseCard({ groupId, course }: CourseCardProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const { url: thumbnailUrl, loading } = useResolvedMediaUrl(
     course.thumbnailUrl
   )

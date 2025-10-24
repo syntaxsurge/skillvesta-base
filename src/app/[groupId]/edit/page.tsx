@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 import Image from 'next/image'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { Button } from '@/components/ui/button'
 import { GroupDescriptionEditor } from '@/features/groups/components/group-description-editor'
@@ -19,7 +19,7 @@ type GroupEditPageProps = {
 }
 
 export default function GroupEditPage(_props: GroupEditPageProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const { group, isOwner, memberCount } = useGroupContext()
 
   useEffect(() => {

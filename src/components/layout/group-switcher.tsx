@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import { useQuery } from 'convex/react'
@@ -16,9 +16,10 @@ import {
 } from '@/components/ui/popover'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 export function GroupSwitcher() {
-  const router = useRouter()
+  const router = useAppRouter()
   const params = useParams()
   const { address } = useAccount()
 

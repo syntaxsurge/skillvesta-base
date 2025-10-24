@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useMemo } from 'react'
 
 import { useQuery } from 'convex/react'
@@ -9,6 +8,7 @@ import { LoadingIndicator } from '@/components/feedback/loading-indicator'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { useCurrentUser } from '@/hooks/use-current-user'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 function normalizeEndsOn(value: number | undefined) {
   if (!value || typeof value !== 'number') return undefined
@@ -73,7 +73,7 @@ export function GroupProvider({
   children,
   expiredFallback
 }: GroupProviderProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const { currentUser } = useCurrentUser()
   const viewerState = useQuery(api.groups.viewer, {
     groupId,

@@ -1,11 +1,11 @@
 'use client'
 
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 
 import { CreditCard, Globe, Lock, Tag, Users } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 import { useGroupContext } from '../context/group-context'
 import { JoinGroupButton } from './join-group-button'
@@ -35,7 +35,7 @@ function formatCreatorName({
 }
 
 export function GroupSidebar({ onEdit }: GroupSidebarProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const { group, owner, isOwner, memberCount } = useGroupContext()
   const totalMembers =
     typeof memberCount === 'number'
