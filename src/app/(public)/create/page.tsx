@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,6 +32,8 @@ import {
   SUBSCRIPTION_PRICE_LABEL
 } from '@/lib/pricing'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
+import { GroupMediaFields } from '@/features/groups/components/group-media-fields'
+import { isValidMediaReference, normalizeMediaInput } from '@/features/groups/utils/media'
 
 const createGroupSchema = z
   .object({
@@ -39,19 +42,14 @@ const createGroupSchema = z
       .string()
       .min(20, 'Describe the group in at least 20 characters')
       .max(200, 'Keep the summary under 200 characters'),
-  aboutUrl: z
-    .string()
-    .trim()
-    .url('Enter a valid URL')
-    .optional()
-    .or(z.literal('')),
-  thumbnailUrl: z
-    .string()
-    .trim()
-    .url('Enter a valid image URL')
-    .optional()
-    .or(z.literal('')),
-    galleryUrls: z.string().optional(),
+    aboutUrl: z
+      .string()
+      .trim()
+      .url('Enter a valid URL')
+      .optional()
+      .or(z.literal('')),
+    thumbnailUrl: z.string().optional(),
+    galleryUrls: z.array(z.string()).default([]),
     tags: z.string().optional(),
     visibility: z.enum(['public', 'private']).default('private'),
     billingCadence: z.enum(['free', 'monthly']).default('free'),
@@ -79,6 +77,24 @@ const createGroupSchema = z
         })
       }
     }
+
+    if (!isValidMediaReference(data.thumbnailUrl)) {
+      ctx.addIssue({
+        path: ['thumbnailUrl'],
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid image URL or upload a file.'
+      })
+    }
+
+    data.galleryUrls.forEach((value, index) => {
+      if (!isValidMediaReference(value)) {
+        ctx.addIssue({
+          path: ['galleryUrls', index],
+          code: z.ZodIssueCode.custom,
+          message: 'Provide a valid image URL or upload a file.'
+        })
+      }
+    })
   })
 
 type CreateGroupFormValues = z.infer<typeof createGroupSchema>
@@ -88,7 +104,7 @@ const DEFAULT_VALUES: CreateGroupFormValues = {
   shortDescription: '',
   aboutUrl: '',
   thumbnailUrl: '',
-  galleryUrls: '',
+  galleryUrls: [],
   tags: '',
   visibility: 'private',
   billingCadence: 'free',
@@ -101,6 +117,8 @@ export default function Create() {
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const createGroup = useMutation(api.groups.create)
+  const generateUploadUrl = useMutation(api.media.generateUploadUrl)
+  const requestUploadUrl = useCallback(() => generateUploadUrl({}), [generateUploadUrl])
 
   const form = useForm<CreateGroupFormValues>({
     resolver: zodResolver(createGroupSchema),
@@ -160,9 +178,10 @@ export default function Create() {
           ? Math.max(0, Number(values.price))
           : 0
 
-      const gallery = values.galleryUrls
-        ?.split('\n')
-        .map(url => url.trim())
+      const thumbnailSource = normalizeMediaInput(values.thumbnailUrl)
+
+      const gallery = (values.galleryUrls ?? [])
+        .map(entry => normalizeMediaInput(entry))
         .filter(Boolean)
 
       const tags = values.tags
@@ -175,9 +194,9 @@ export default function Create() {
         name: values.name.trim(),
         description: undefined,
         shortDescription: values.shortDescription.trim(),
-        aboutUrl: values.aboutUrl?.trim() || undefined,
-        thumbnailUrl: values.thumbnailUrl?.trim() || undefined,
-        galleryUrls: gallery,
+        aboutUrl: normalizeMediaInput(values.aboutUrl) || undefined,
+        thumbnailUrl: thumbnailSource || undefined,
+        galleryUrls: gallery.length ? gallery : undefined,
         tags,
         visibility: values.visibility,
         billingCadence:
@@ -344,18 +363,9 @@ export default function Create() {
                 />
               )}
 
-              <FormField
-                control={form.control}
-                name='thumbnailUrl'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Thumbnail image URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder='https://...' {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+              <GroupMediaFields
+                form={form}
+                requestUploadUrl={requestUploadUrl}
               />
 
               <FormField
@@ -375,23 +385,6 @@ export default function Create() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name='galleryUrls'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gallery assets</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder={'Add one URL per line to feature additional images or videos.'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}
