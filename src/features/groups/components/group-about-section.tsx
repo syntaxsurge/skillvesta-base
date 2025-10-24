@@ -6,26 +6,27 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle2,
-  CreditCard,
   ExternalLink,
   Globe,
   Loader2,
   Lock,
-  Users,
-  ShieldCheck
+  ShieldCheck,
+  Tag,
+  Users
 } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
 
+import { formatTimestampRelative } from '@/lib/time'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { MEMBERSHIP_CONTRACT_ADDRESS, BASE_CHAIN_ID } from '@/lib/config'
+import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
+import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { GroupDescriptionEditor } from './group-description-editor'
 import { GroupMediaCarousel } from './group-media-carousel'
 import { useGroupContext } from '../context/group-context'
 import { normalizePassExpiry, resolveMembershipCourseId } from '../utils/membership'
 import { formatGroupPriceLabel } from '../utils/price'
-import { formatTimestampRelative } from '@/lib/time'
-import { MEMBERSHIP_CONTRACT_ADDRESS, BASE_CHAIN_ID } from '@/lib/config'
-import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
-import { ACTIVE_CHAIN } from '@/lib/wagmi'
 
 type CourseVerificationState =
   | { status: 'checking' }
@@ -190,6 +191,14 @@ export function GroupAboutSection() {
       ? `${owner.walletAddress.slice(0, 6)}...${owner.walletAddress.slice(-4)}`
       : 'Unknown creator')
 
+  const creatorInitials = useMemo(() => {
+    if (!creatorName) return '?'
+    const parts = creatorName.split(' ').filter(Boolean)
+    if (parts.length === 0) return '?'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  }, [creatorName])
+
   const isAdmin = useMemo(() => {
     if (isOwner) return true
     if (!currentUser) return false
@@ -218,6 +227,16 @@ export function GroupAboutSection() {
 
     return `${absolute} (${relative})`
   }, [isAdmin, membership.status, passExpiryMs])
+
+  const memberCountLabel = useMemo(() => {
+    const formatter = new Intl.NumberFormat('en-US', {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    })
+    const value = Number.isFinite(totalMembers) ? totalMembers : 0
+    const membersLabel = value === 1 ? 'member' : 'members'
+    return `${formatter.format(value)} ${membersLabel}`
+  }, [totalMembers])
 
   const basescanBase = BASE_CHAIN_ID === 8453 ? 'https://basescan.org' : 'https://sepolia.basescan.org'
   // Link directly to the ERC-1155 token ID page (without fragment).
@@ -288,24 +307,36 @@ export function GroupAboutSection() {
         />
       </div>
 
-      {(group.price ?? 0) > 0 && (
-        <div className='flex items-center gap-4 rounded-lg border border-border bg-card px-5 py-3'>
-          <div className='flex items-center gap-2 text-sm text-foreground'>
-            <Globe className='h-4 w-4 text-muted-foreground' />
-            <span className='font-medium'>{privacy.label}</span>
-          </div>
-          <div className='h-4 w-px bg-border' />
-          <div className='flex items-center gap-2 text-sm text-foreground'>
-            <Users className='h-4 w-4 text-muted-foreground' />
-            <span className='font-medium'>{totalMembers} members</span>
-          </div>
-          <div className='h-4 w-px bg-border' />
-          <div className='flex items-center gap-2 text-sm text-foreground'>
-            <CreditCard className='h-4 w-4 text-muted-foreground' />
-            <span className='font-medium'>{priceLabel}</span>
-          </div>
+      <div className='flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card px-5 py-3'>
+        <div className='flex items-center gap-2 text-sm text-foreground'>
+          <privacy.icon className='h-4 w-4 text-muted-foreground' />
+          <span className='font-medium'>{privacy.label}</span>
         </div>
-      )}
+        <div className='h-4 w-px bg-border' />
+        <div className='flex items-center gap-2 text-sm text-foreground'>
+          <Users className='h-4 w-4 text-muted-foreground' />
+          <span className='font-medium'>{memberCountLabel}</span>
+        </div>
+        <div className='h-4 w-px bg-border' />
+        <div className='flex items-center gap-2 text-sm text-foreground'>
+          <Tag className='h-4 w-4 text-muted-foreground' />
+          <span className='font-medium'>{priceLabel}</span>
+        </div>
+        {owner ? (
+          <>
+            <div className='h-4 w-px bg-border' />
+            <div className='flex items-center gap-2 text-sm text-foreground'>
+              <Avatar className='h-6 w-6'>
+                {owner.avatarUrl ? <AvatarImage src={owner.avatarUrl} alt={creatorName} /> : null}
+                <AvatarFallback className='text-xs font-semibold'>
+                  {creatorInitials}
+                </AvatarFallback>
+              </Avatar>
+              <span className='font-medium'>By {creatorName}</span>
+            </div>
+          </>
+        ) : null}
+      </div>
 
       {adminPrivilegeMessage ? (
         <div className='rounded-lg border border-border bg-card px-5 py-3 text-sm text-muted-foreground'>

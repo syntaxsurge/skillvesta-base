@@ -210,7 +210,7 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
           <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className='w-full uppercase'
+                className='w-full uppercase bg-destructive text-destructive-foreground hover:bg-destructive/80'
                 variant='destructive'
                 disabled={isDeleting}
               >
@@ -237,6 +237,7 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
                 <Button
                   type='button'
                   variant='destructive'
+                  className='bg-destructive text-destructive-foreground hover:bg-destructive/80'
                   onClick={handleDeleteGroup}
                   disabled={isDeleting}
                 >
