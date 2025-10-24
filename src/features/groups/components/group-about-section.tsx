@@ -196,8 +196,15 @@ export function GroupAboutSection() {
     return administrators?.some(a => a.user._id === currentUser._id) ?? false
   }, [administrators, currentUser, isOwner])
 
+  const adminPrivilegeMessage = useMemo(() => {
+    if (!isAdmin) return null
+    return isOwner
+      ? 'You own this group. Owner privileges include full administrative control without relying on a membership pass.'
+      : 'You are an administrator for this group. Admin privileges provide full access without relying on a membership pass.'
+  }, [isAdmin, isOwner])
+
   const membershipExpiryLabel = useMemo(() => {
-    if (membership.status !== 'active') return null
+    if (membership.status !== 'active' || isAdmin) return null
     if (!passExpiryMs) {
       return 'No expiry scheduled'
     }
@@ -210,7 +217,7 @@ export function GroupAboutSection() {
     }).format(new Date(passExpiryMs))
 
     return `${absolute} (${relative})`
-  }, [membership.status, passExpiryMs])
+  }, [isAdmin, membership.status, passExpiryMs])
 
   const basescanBase = BASE_CHAIN_ID === 8453 ? 'https://basescan.org' : 'https://sepolia.basescan.org'
   // Link directly to the ERC-1155 token ID page (without fragment).
@@ -300,12 +307,17 @@ export function GroupAboutSection() {
         </div>
       )}
 
-      {membershipExpiryLabel && membership.status === 'active' && (
+      {adminPrivilegeMessage ? (
+        <div className='rounded-lg border border-border bg-card px-5 py-3 text-sm text-muted-foreground'>
+          <ShieldCheck className='mr-2 inline h-4 w-4' />
+          {adminPrivilegeMessage}
+        </div>
+      ) : membershipExpiryLabel && membership.status === 'active' ? (
         <div className='rounded-lg border border-border bg-card px-5 py-3 text-sm text-muted-foreground'>
           <Calendar className='mr-2 inline h-4 w-4' />
           Your pass expires {membershipExpiryLabel}
         </div>
-      )}
+      ) : null}
 
       <GroupDescriptionEditor
         editable={isOwner}

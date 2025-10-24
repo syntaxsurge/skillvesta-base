@@ -62,14 +62,14 @@ export function GroupPostCard({ post, className }: GroupPostCardProps) {
 
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(post.title)
-  const [content, setContent] = useState(post.content)
+  const [content, setContent] = useState(post.content ?? '')
 
   const canUpdate =
     Boolean(title.trim()) && Boolean(content.trim()) && !isUpdating && Boolean(address)
 
   const openEditDialog = () => {
     setTitle(post.title)
-    setContent(post.content)
+    setContent(post.content ?? '')
     setIsEditing(true)
   }
 
@@ -168,7 +168,7 @@ export function GroupPostCard({ post, className }: GroupPostCardProps) {
           setIsEditing(open)
           if (!open) {
             setTitle(post.title)
-            setContent(post.content)
+            setContent(post.content ?? '')
           }
         }}
       >

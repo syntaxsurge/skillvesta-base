@@ -3,10 +3,21 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 
-import { Check, Copy, CreditCard, Globe, Lock, Tag, Users } from 'lucide-react'
+import { Check, Copy, CreditCard, Globe, Lock, Trash2, Users } from 'lucide-react'
+import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
+import { api } from '@/convex/_generated/api'
 import { useAppRouter } from '@/hooks/use-app-router'
 
 import { useGroupContext } from '../context/group-context'
@@ -38,6 +49,7 @@ function formatCreatorName({
 
 export function GroupSidebar({ onEdit }: GroupSidebarProps) {
   const router = useAppRouter()
+  const removeGroup = useMutation(api.groups.remove)
   const { group, owner, isOwner, memberCount } = useGroupContext()
   const totalMembers =
     typeof memberCount === 'number'
@@ -45,6 +57,8 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
       : group.memberNumber ?? 0
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -84,6 +98,38 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
     group.billingCadence,
     { includeCadence: true }
   )
+
+  const handleDeleteGroup = async () => {
+    if (isDeleting) {
+      return
+    }
+
+    if (!owner?.walletAddress) {
+      toast.error('Group owner wallet not available. Unable to delete.')
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+      await removeGroup({
+        groupId: group._id,
+        ownerAddress: owner.walletAddress
+      })
+
+      toast.success('Group deleted successfully.')
+      setDeleteDialogOpen(false)
+      router.push('/groups')
+      router.refresh()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete group. Please try again.'
+      toast.error(message)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   return (
     <aside className='w-full max-w-sm space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm'>
@@ -152,13 +198,54 @@ export function GroupSidebar({ onEdit }: GroupSidebarProps) {
       </div>
 
       {isOwner ? (
-        <Button
-          className='w-full uppercase'
-          variant='secondary'
-          onClick={handleEditClick}
-        >
-          Edit group details
-        </Button>
+        <div className='space-y-3'>
+          <Button
+            className='w-full uppercase'
+            variant='secondary'
+            onClick={handleEditClick}
+          >
+            Edit group details
+          </Button>
+
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                className='w-full uppercase'
+                variant='destructive'
+                disabled={isDeleting}
+              >
+                <Trash2 className='mr-2 h-4 w-4' />
+                Delete group
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete this group?</DialogTitle>
+                <DialogDescription>
+                  This action permanently removes the group, its members, classroom content, posts, and stored media. This cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => setDeleteDialogOpen(false)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type='button'
+                  variant='destructive'
+                  onClick={handleDeleteGroup}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting…' : 'Delete group'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       ) : (
         <JoinGroupButton />
       )}
