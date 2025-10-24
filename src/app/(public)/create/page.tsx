@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { CharacterCount } from '@/components/ui/character-count'
 import { api } from '@/convex/_generated/api'
 import {
   MEMBERSHIP_DURATION_SECONDS,
@@ -401,9 +402,11 @@ export default function Create() {
                         <Input
                           placeholder='e.g., AI Automation Society'
                           className='h-12'
+                          maxLength={80}
                           {...field}
                         />
                       </FormControl>
+                      <CharacterCount value={field.value} maxLength={80} className='mt-1' />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -419,9 +422,15 @@ export default function Create() {
                         <Textarea
                           rows={4}
                           placeholder='Describe what makes your community special...'
+                          maxLength={200}
                           {...field}
                         />
                       </FormControl>
+                      <CharacterCount
+                        value={field.value}
+                        maxLength={200}
+                        className='mt-1'
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
