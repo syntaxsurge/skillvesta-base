@@ -214,8 +214,9 @@ export function GroupAboutSection() {
   }, [membership.status, passExpiryMs])
 
   const basescanBase = BASE_CHAIN_ID === 8453 ? 'https://basescan.org' : 'https://sepolia.basescan.org'
+  // Link to the token ID's Inventory tab (actual ERC-1155 page), not the tx list.
   const tokenLink = membershipAddress && membershipCourseId
-    ? `${basescanBase}/token/${membershipAddress}?a=${membershipCourseId.toString()}`
+    ? `${basescanBase}/token/${membershipAddress}?a=${membershipCourseId.toString()}#inventory`
     : null
   const membershipCourseIdLabel = membershipCourseId ? membershipCourseId.toString() : 'Not assigned'
   const explorerName = ACTIVE_CHAIN.blockExplorers?.default.name ?? 'block explorer'
@@ -223,7 +224,7 @@ export function GroupAboutSection() {
     if (!membershipCourseId || !membershipAddress) return null
     const baseUrl = ACTIVE_CHAIN.blockExplorers?.default.url
     if (!baseUrl) return null
-    return `${baseUrl}/token/${membershipAddress}?a=${membershipCourseId.toString()}`
+    return `${baseUrl}/token/${membershipAddress}?a=${membershipCourseId.toString()}#inventory`
   }, [membershipAddress, membershipCourseId])
   const verificationNode = useMemo(() => {
     switch (courseVerification.status) {
