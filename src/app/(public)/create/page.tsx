@@ -209,41 +209,52 @@ export default function Create() {
         priceString !== '' ? Math.max(0, Number(priceString)) : 0
       const membershipPriceAmount =
         priceString !== '' ? parseUnits(priceString, 6) : 0n
+      const isPaidMembership = formattedPrice > 0
 
-      courseIdStr = generateMembershipCourseId()
-      const courseId = BigInt(courseIdStr)
+      if (isPaidMembership) {
+        courseIdStr = generateMembershipCourseId()
+        const courseId = BigInt(courseIdStr)
 
-      // Sanity: Registrar must have marketplace configured and match env
-      const registrarMarketplace = (await publicClient.readContract({
-        address: registrarAddress,
-        abi: registrarAbi,
-        functionName: 'marketplace'
-      })) as `0x${string}`
-      if (!registrarMarketplace || registrarMarketplace === '0x0000000000000000000000000000000000000000') {
-        toast.error('Registrar is not configured with a marketplace address. Contact the admin to set it.')
-        return
-      }
-
-      // Preflight the registrar call so we fail fast before charging the platform fee
-      try {
-        await publicClient.simulateContract({
+        // Sanity: Registrar must have marketplace configured and match env
+        const registrarMarketplace = (await publicClient.readContract({
           address: registrarAddress,
           abi: registrarAbi,
-          functionName: 'registerCourse',
-          args: [
-            courseId,
-            membershipPriceAmount,
-            [address as `0x${string}`],
-            [10000],
-            BigInt(MEMBERSHIP_DURATION_SECONDS),
-            BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
-          ],
-          account: address as `0x${string}`
-        })
-      } catch (err: any) {
-        console.error('Preflight registerCourse failed', err)
-        toast.error(err?.shortMessage ?? 'Registrar rejected course registration. Check configuration.')
-        return
+          functionName: 'marketplace'
+        })) as `0x${string}`
+        if (
+          !registrarMarketplace ||
+          registrarMarketplace === '0x0000000000000000000000000000000000000000'
+        ) {
+          toast.error(
+            'Registrar is not configured with a marketplace address. Contact the admin to set it.'
+          )
+          return
+        }
+
+        // Preflight the registrar call so we fail fast before charging the platform fee
+        try {
+          await publicClient.simulateContract({
+            address: registrarAddress,
+            abi: registrarAbi,
+            functionName: 'registerCourse',
+            args: [
+              courseId,
+              membershipPriceAmount,
+              [address as `0x${string}`],
+              [10000],
+              BigInt(MEMBERSHIP_DURATION_SECONDS),
+              BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+            ],
+            account: address as `0x${string}`
+          })
+        } catch (err: any) {
+          console.error('Preflight registerCourse failed', err)
+          toast.error(
+            err?.shortMessage ??
+              'Registrar rejected course registration. Check configuration.'
+          )
+          return
+        }
       }
 
       // Platform fee payment (after preflight so we don’t charge if wiring is broken)
@@ -257,20 +268,22 @@ export default function Create() {
       txHash = hash
       await publicClient.waitForTransactionReceipt({ hash })
 
-      const registerHash = await writeContractAsync({
-        address: registrarAddress,
-        abi: registrarAbi,
-        functionName: 'registerCourse',
-        args: [
-          courseId,
-          membershipPriceAmount,
-          [address as `0x${string}`],
-          [10000],
-          BigInt(MEMBERSHIP_DURATION_SECONDS),
-          BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
-        ]
-      })
-      await publicClient.waitForTransactionReceipt({ hash: registerHash })
+      if (isPaidMembership && courseIdStr) {
+        const registerHash = await writeContractAsync({
+          address: registrarAddress,
+          abi: registrarAbi,
+          functionName: 'registerCourse',
+          args: [
+            BigInt(courseIdStr),
+            membershipPriceAmount,
+            [address as `0x${string}`],
+            [10000],
+            BigInt(MEMBERSHIP_DURATION_SECONDS),
+            BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+          ]
+        })
+        await publicClient.waitForTransactionReceipt({ hash: registerHash })
+      }
 
       const thumbnailSource = normalizeMediaInput(values.thumbnailUrl)
 
@@ -286,7 +299,7 @@ export default function Create() {
       const resolvedVisibility =
         values.billingCadence === 'monthly' ? 'private' : values.visibility
 
-      if (!courseIdStr) {
+      if (isPaidMembership && !courseIdStr) {
         throw new Error('Failed to generate membership course id.')
       }
 
@@ -303,7 +316,7 @@ export default function Create() {
         billingCadence:
           formattedPrice > 0 ? 'monthly' : values.billingCadence,
         price: formattedPrice,
-        subscriptionId: courseIdStr
+        subscriptionId: courseIdStr ?? undefined
       } as any)
 
       toast.success('Your group is live!')
