@@ -27,7 +27,9 @@ export function AppProviders({ children }: AppProvidersProps) {
   const onchainKitConfig = useMemo(
     () => ({
       appearance: {
-        name: 'Skillvesta'
+        name: 'Skillvesta',
+        mode: 'auto' as const,
+        theme: 'default' as const
       },
       wallet: {
         display: 'modal' as const,
