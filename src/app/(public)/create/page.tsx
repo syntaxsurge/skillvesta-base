@@ -407,6 +407,10 @@ export default function Create() {
                           {...field}
                         />
                       </FormControl>
+                      <FormDescription className='flex justify-between text-xs text-muted-foreground'>
+                        <span>2-80 characters</span>
+                        <span>{(field.value?.length ?? 0).toString()} / 80</span>
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -425,6 +429,10 @@ export default function Create() {
                           {...field}
                         />
                       </FormControl>
+                      <FormDescription className='flex justify-between text-xs text-muted-foreground'>
+                        <span>20-200 characters</span>
+                        <span>{(field.value?.length ?? 0).toString()} / 200</span>
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
