@@ -473,6 +473,33 @@ export const updateSettings = mutation({
   }
 })
 
+export const resetSubscriptionId = mutation({
+  args: {
+    groupId: v.id('groups'),
+    ownerAddress: v.string()
+  },
+  handler: async (ctx, { groupId, ownerAddress }) => {
+    const owner = await requireUserByWallet(ctx, ownerAddress)
+    const group = await ctx.db.get(groupId)
+
+    if (!group) {
+      throw new Error('Group not found.')
+    }
+
+    if (group.ownerId !== owner._id) {
+      throw new Error('Only the group owner can reset the course ID.')
+    }
+
+    const subscriptionId = generateSubscriptionId()
+
+    await ctx.db.patch(groupId, {
+      subscriptionId
+    })
+
+    return { subscriptionId }
+  }
+})
+
 export const renewSubscription = mutation({
   args: {
     groupId: v.id('groups'),

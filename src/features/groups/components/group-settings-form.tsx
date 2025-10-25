@@ -44,6 +44,7 @@ import { resolveMembershipCourseId } from '../utils/membership'
 import { GroupMediaFields } from './group-media-fields'
 import { isValidMediaReference, normalizeMediaInput } from '../utils/media'
 import { useRenewSubscription } from '../hooks/use-renew-subscription'
+import { useAppRouter } from '@/hooks/use-app-router'
 
 const administratorSchema = z.object({
   walletAddress: z
@@ -179,9 +180,11 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const { owner, administrators: existingAdministrators, media, subscription } = useGroupContext()
   const updateSettings = useMutation(api.groups.updateSettings)
+  const resetSubscriptionIdMutation = useMutation(api.groups.resetSubscriptionId)
   const generateUploadUrl = useMutation(api.media.generateUploadUrl)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegisteringCourse, setIsRegisteringCourse] = useState(false)
+  const [isResettingCourseId, setIsResettingCourseId] = useState(false)
   const { renew: triggerRenewSubscription, isRenewing: isSubscriptionRenewing } = useRenewSubscription()
   const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
   const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | ''
@@ -199,6 +202,7 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
       ? { status: 'checking' }
       : { status: 'missing', message: 'Membership course ID not assigned.' }
   )
+  const router = useAppRouter()
   const ownerAddress = owner?.walletAddress?.toLowerCase() ?? null
 
   const initialThumbnailSource = normalizeMediaInput(
@@ -327,6 +331,8 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     membershipCourseId !== null &&
     (registrationState.status === 'missing' ||
       registrationState.status === 'error')
+  const canResetCourseId =
+    canRegisterOnchain && registrationState.status !== 'registered'
 
   const subscriptionRenewalLabel = subscription.endsOn
     ? formatTimestampRelative(subscription.endsOn)
@@ -477,6 +483,46 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     registrarAddress,
     walletClient
   ])
+
+  const handleResetCourseId = useCallback(async () => {
+    if (!canRegisterOnchain) {
+      toast.error('Only the group owner can reset the course ID.')
+      return
+    }
+    if (!address) {
+      toast.error('Connect your wallet to continue.')
+      return
+    }
+
+    try {
+      setIsResettingCourseId(true)
+      const result = (await resetSubscriptionIdMutation({
+        groupId: group._id,
+        ownerAddress: address
+      })) as { subscriptionId?: string } | undefined
+
+      const newId = result?.subscriptionId ?? null
+      if (newId) {
+        setRegistrationState({ status: 'checking' })
+      } else {
+        setRegistrationState({
+          status: 'missing',
+          message: 'Membership course ID not assigned.'
+        })
+      }
+      toast.success('Generated a new membership course ID.')
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to reset subscription ID', error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Unable to reset the membership course ID.'
+      )
+    } finally {
+      setIsResettingCourseId(false)
+    }
+  }, [address, canRegisterOnchain, group._id, resetSubscriptionIdMutation, router])
 
   const mediaSnapshot = useMemo(
     () => ({
@@ -671,23 +717,37 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
               <div className='font-mono text-sm text-foreground'>{courseIdDisplay}</div>
             </div>
           </div>
-          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
             <p className='text-xs text-muted-foreground sm:flex-1'>
               {registrationDescription}
             </p>
-            {showRegistrationButton ? (
-              <Button
-                type='button'
-                onClick={handleRegisterCourse}
-                disabled={isRegisteringCourse}
-              >
-                {isRegisteringCourse ? 'Registering…' : registrationActionLabel}
-              </Button>
-            ) : (
-              <span className='inline-flex items-center justify-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground'>
-                {registrationStatusText}
-              </span>
-            )}
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2'>
+              {showRegistrationButton ? (
+                <Button
+                  type='button'
+                  onClick={handleRegisterCourse}
+                  disabled={isRegisteringCourse}
+                >
+                  {isRegisteringCourse ? 'Registering…' : registrationActionLabel}
+                </Button>
+              ) : (
+                <span className='inline-flex items-center justify-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground'>
+                  {registrationStatusText}
+                </span>
+              )}
+              {canResetCourseId && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => {
+                    void handleResetCourseId()
+                  }}
+                  disabled={isResettingCourseId}
+                >
+                  {isResettingCourseId ? 'Resetting…' : 'Reset course ID'}
+                </Button>
+              )}
+            </div>
           </div>
           {ownerAddress &&
             !canRegisterOnchain &&
