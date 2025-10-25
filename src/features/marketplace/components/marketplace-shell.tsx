@@ -1290,16 +1290,16 @@ export function ListDialog({
 
         {showCooldownNotice ? (
           <div className='pt-3' aria-live='polite'>
-            <span
-              className='inline-flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive'
+            <div
+              className='flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-200'
               role='status'
             >
               <span
-                className='h-1.5 w-1.5 rounded-full bg-destructive'
+                className='h-2 w-2 rounded-full bg-amber-400'
                 aria-hidden='true'
               />
-              {cooldownLabel}
-            </span>
+              <span>{cooldownLabel}</span>
+            </div>
           </div>
         ) : listingDisabledReason ? (
           <p className='pt-2 text-xs text-muted-foreground'>
