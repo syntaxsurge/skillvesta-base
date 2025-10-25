@@ -1291,11 +1291,11 @@ export function ListDialog({
         {showCooldownNotice ? (
           <div className='pt-3' aria-live='polite'>
             <div
-              className='flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-200'
+              className='flex items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-100 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-400/50 dark:bg-amber-500/15 dark:text-amber-200'
               role='status'
             >
               <span
-                className='h-2 w-2 rounded-full bg-amber-400'
+                className='h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-300'
                 aria-hidden='true'
               />
               <span>{cooldownLabel}</span>
