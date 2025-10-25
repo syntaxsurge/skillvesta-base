@@ -21,7 +21,11 @@ export function formatDurationShort(seconds: bigint | number): string {
 }
 
 export function formatTimestampRelative(timestamp: bigint | number): string {
-  const value = typeof timestamp === 'bigint' ? Number(timestamp) : timestamp
+  const rawValue = typeof timestamp === 'bigint' ? Number(timestamp) : timestamp
+  if (!Number.isFinite(rawValue) || rawValue === 0) return '∅'
+
+  const value =
+    rawValue > 1_000_000_000_000 ? Math.floor(rawValue / 1000) : rawValue
   if (!Number.isFinite(value) || value === 0) return '∅'
 
   const now = Math.floor(Date.now() / 1000)
