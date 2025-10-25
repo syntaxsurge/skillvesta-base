@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { Address, erc20Abi, maxUint256, parseUnits } from 'viem'
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
+import { useAccount, usePublicClient, useWalletClient, useWriteContract } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +33,7 @@ import { formatGroupPriceLabel } from '../utils/price'
 export function JoinGroupButton() {
   const { group, owner, isOwner, isMember, membership } = useGroupContext()
   const { address } = useAccount()
+  const { data: walletClient } = useWalletClient()
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const joinGroup = useMutation(api.groups.join)
@@ -48,7 +49,14 @@ export function JoinGroupButton() {
       address: membershipAddress
     })
   }, [publicClient, membershipAddress])
-  const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
+const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
+  const blockchainAddress = useMemo(() => {
+    const smartAddress = walletClient?.account?.address
+    return (smartAddress ?? address ?? null) as `0x${string}` | null
+  }, [address, walletClient?.account?.address])
+  const backendAddress = useMemo(() => {
+    return (address ?? walletClient?.account?.address ?? null) as `0x${string}` | null
+  }, [address, walletClient?.account?.address])
 
   if (isOwner) {
     return (
@@ -63,7 +71,7 @@ export function JoinGroupButton() {
   }
 
   const handleJoin = async () => {
-    if (!address) {
+    if (!blockchainAddress || !backendAddress) {
       toast.error('Connect your wallet to join this group.')
       return
     }
@@ -106,16 +114,16 @@ export function JoinGroupButton() {
     try {
       setIsSubmitting(true)
 
-      if (requiresPayment && membershipService && candidateCourseId && address) {
+      if (requiresPayment && membershipService && candidateCourseId && blockchainAddress) {
         const courseIdStrict = candidateCourseId
         try {
           console.log('[JoinGroup] Checking existing pass before payment', {
             courseId: courseIdStrict.toString(),
-            address
+            address: blockchainAddress
           })
           const [active, state] = await Promise.all([
-            membershipService.isPassActive(courseIdStrict, address as Address),
-            membershipService.getPassState(courseIdStrict, address as Address)
+            membershipService.isPassActive(courseIdStrict, blockchainAddress as Address),
+            membershipService.getPassState(courseIdStrict, blockchainAddress as Address)
           ])
 
           if (active) {
@@ -146,7 +154,7 @@ export function JoinGroupButton() {
           address: usdcAddress!,
           abi: erc20Abi,
           functionName: 'balanceOf',
-          args: [address]
+          args: [blockchainAddress]
         })) as bigint
 
         if (balance < amount) {
@@ -158,7 +166,7 @@ export function JoinGroupButton() {
           address: usdcAddress!,
           abi: erc20Abi,
           functionName: 'allowance',
-          args: [address, marketplaceAddressStrict]
+          args: [blockchainAddress, marketplaceAddressStrict]
         })) as bigint
 
         if (allowance < amount) {
@@ -188,11 +196,11 @@ export function JoinGroupButton() {
         try {
           console.log('[JoinGroup] Verifying pass state after mint', {
             courseId: courseIdStrict.toString(),
-            address
+            address: blockchainAddress
           })
           const [state, balance] = await Promise.all([
-            membershipService!.getPassState(courseIdStrict, address as Address),
-            membershipService!.balanceOf(address as Address, courseIdStrict)
+            membershipService!.getPassState(courseIdStrict, blockchainAddress as Address),
+            membershipService!.balanceOf(blockchainAddress as Address, courseIdStrict)
           ])
           passExpiryMs = normalizePassExpiry(state.expiresAt) ?? passExpiryMs
           const hasPassNow = balance > 0n
@@ -216,7 +224,7 @@ export function JoinGroupButton() {
 
       await joinGroup({
         groupId: group._id,
-        memberAddress: address,
+        memberAddress: backendAddress,
         txHash,
         hasActivePass: skipPayment,
         passExpiresAt: passExpiryMs
@@ -257,6 +265,7 @@ type LeaveGroupButtonProps = {
 function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps) {
   const { group, membership } = useGroupContext()
   const { address } = useAccount()
+  const { data: walletClient } = useWalletClient()
   const leaveGroup = useMutation(api.groups.leave)
   const [isLeaving, setIsLeaving] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -267,8 +276,16 @@ function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps
 
   const isFreeGroup = (group.price ?? 0) === 0
 
+  const blockchainAddress = useMemo(() => {
+    const smartAddress = walletClient?.account?.address
+    return (smartAddress ?? address ?? null) as `0x${string}` | null
+  }, [address, walletClient?.account?.address])
+  const backendAddress = useMemo(() => {
+    return (address ?? walletClient?.account?.address ?? null) as `0x${string}` | null
+  }, [address, walletClient?.account?.address])
+
   const handleLeave = async () => {
-    if (!address) {
+    if (!blockchainAddress || !backendAddress) {
       toast.error('Connect your wallet to manage memberships.')
       return
     }
@@ -279,7 +296,7 @@ function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps
 
       await leaveGroup({
         groupId: group._id,
-        memberAddress: address,
+        memberAddress: backendAddress,
         passExpiresAt: passExpiryMs
       })
 
@@ -299,7 +316,7 @@ function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps
       isFreeGroup ||
       !membershipService ||
       !courseId ||
-      !address ||
+      !blockchainAddress ||
       typeof window === 'undefined'
     ) {
       return
@@ -308,7 +325,7 @@ function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps
     let cancelled = false
     setIsCheckingExpiry(true)
     membershipService
-      .getPassState(courseId, address as Address)
+      .getPassState(courseId, blockchainAddress as Address)
       .then(state => normalizePassExpiry(state.expiresAt))
       .then(expiryMs => {
         if (!cancelled && expiryMs) {
@@ -327,7 +344,7 @@ function LeaveGroupButton({ membershipService, courseId }: LeaveGroupButtonProps
     return () => {
       cancelled = true
     }
-  }, [dialogOpen, isFreeGroup, membershipService, courseId, address])
+  }, [dialogOpen, isFreeGroup, membershipService, courseId, blockchainAddress])
 
   const expirySeconds = resolvedExpiryMs ? Math.floor(resolvedExpiryMs / 1000) : null
   const expiryDisplay =
