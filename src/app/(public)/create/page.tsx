@@ -354,11 +354,11 @@ export default function Create() {
                 <p className='text-3xl font-bold text-foreground'>{SUBSCRIPTION_PRICE_LABEL}</p>
               </div>
               <div className='rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary'>
-                One-time payment
+                Renews monthly
               </div>
             </div>
             <p className='mt-4 text-sm text-muted-foreground'>
-              Access all features with unlimited usage. No hidden charges or recurring platform fees.
+              Billed once every 30 days. Renew before the window closes to keep your community online without interruption.
             </p>
           </div>
 
