@@ -72,7 +72,6 @@ contract MembershipPass1155 is ERC1155Supply, AccessControl, Pausable, Reentranc
     error CourseNotFound(uint256 courseId);
     error InvalidSplitter();
     error NotCourseCreator(uint256 courseId, address account);
-    error PriceCannotBeZero();
     error TransferRestricted(address caller);
     error TransferCooldownActive(uint256 courseId, address account, uint64 availableAt);
     error PassExpired(uint256 courseId, address account, uint64 expiredAt);
@@ -102,7 +101,6 @@ contract MembershipPass1155 is ERC1155Supply, AccessControl, Pausable, Reentranc
     ) external whenNotPaused onlyRole(REGISTRAR_ROLE) {
         if (_courses[courseId].splitter != address(0)) revert CourseAlreadyExists(courseId);
         if (splitter == address(0)) revert InvalidSplitter();
-        if (priceUSDC == 0) revert PriceCannotBeZero();
         if (duration == type(uint64).max || transferCooldown == type(uint64).max) revert InvalidDuration();
 
         _courses[courseId] = Course({
@@ -124,7 +122,6 @@ contract MembershipPass1155 is ERC1155Supply, AccessControl, Pausable, Reentranc
         Course storage courseInfo = _courses[courseId];
         if (courseInfo.splitter == address(0)) revert CourseNotFound(courseId);
         if (!_canManageCourse(courseId, msg.sender)) revert NotCourseCreator(courseId, msg.sender);
-        if (newPriceUSDC == 0) revert PriceCannotBeZero();
 
         uint256 oldPrice = courseInfo.priceUSDC;
         courseInfo.priceUSDC = newPriceUSDC;

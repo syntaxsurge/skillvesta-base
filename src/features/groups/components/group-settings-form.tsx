@@ -5,7 +5,8 @@ import { useMutation } from 'convex/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { useAccount } from 'wagmi'
+import { parseUnits } from 'viem'
+import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { z } from 'zod'
 
 import { Plus, Trash2 } from 'lucide-react'
@@ -24,7 +25,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
+import {
+  MARKETPLACE_CONTRACT_ADDRESS,
+  MEMBERSHIP_CONTRACT_ADDRESS,
+  MEMBERSHIP_DURATION_SECONDS,
+  MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS,
+  REGISTRAR_CONTRACT_ADDRESS
+} from '@/lib/config'
+import { registrarAbi } from '@/lib/onchain/abi'
+import { RegistrarService } from '@/lib/onchain/services/registrarService'
+import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
+import { ACTIVE_CHAIN } from '@/lib/wagmi'
 import { useGroupContext } from '../context/group-context'
+import { resolveMembershipCourseId } from '../utils/membership'
 import { GroupMediaFields } from './group-media-fields'
 import { isValidMediaReference, normalizeMediaInput } from '../utils/media'
 
@@ -150,12 +163,37 @@ type GroupSettingsFormProps = {
 
 type GroupSettingsValues = z.infer<typeof settingsSchema>
 
+type RegistrationState =
+  | { status: 'checking' }
+  | { status: 'registered' }
+  | { status: 'missing'; message: string }
+  | { status: 'error'; message: string }
+
 export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   const { address } = useAccount()
+  const { data: walletClient } = useWalletClient()
+  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
   const { owner, administrators: existingAdministrators, media } = useGroupContext()
   const updateSettings = useMutation(api.groups.updateSettings)
   const generateUploadUrl = useMutation(api.media.generateUploadUrl)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRegisteringCourse, setIsRegisteringCourse] = useState(false)
+  const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
+  const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | ''
+  const registrarAddress = REGISTRAR_CONTRACT_ADDRESS as `0x${string}` | ''
+  const marketplaceAddress = MARKETPLACE_CONTRACT_ADDRESS as `0x${string}` | ''
+  const membershipService = useMemo(() => {
+    if (!publicClient || !membershipAddress) return null
+    return new MembershipPassService({
+      publicClient: publicClient as any,
+      address: membershipAddress
+    })
+  }, [membershipAddress, publicClient])
+  const [registrationState, setRegistrationState] = useState<RegistrationState>(() =>
+    membershipCourseId
+      ? { status: 'checking' }
+      : { status: 'missing', message: 'Membership course ID not assigned.' }
+  )
   const ownerAddress = owner?.walletAddress?.toLowerCase() ?? null
 
   const initialThumbnailSource = normalizeMediaInput(
@@ -195,10 +233,206 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     }
   }, [billingCadence, form])
 
+  useEffect(() => {
+    if (!membershipCourseId) {
+      setRegistrationState({
+        status: 'missing',
+        message: 'Membership course ID not assigned.'
+      })
+      return
+    }
+
+    if (!membershipAddress) {
+      setRegistrationState({
+        status: 'error',
+        message: 'Membership contract address is not configured.'
+      })
+      return
+    }
+
+    if (!membershipService) {
+      setRegistrationState({ status: 'checking' })
+      return
+    }
+
+    let cancelled = false
+    setRegistrationState({ status: 'checking' })
+
+    membershipService
+      .getCourse(membershipCourseId)
+      .then(() => {
+        if (!cancelled) {
+          setRegistrationState({ status: 'registered' })
+        }
+      })
+      .catch(error => {
+        if (cancelled) return
+        const message = error instanceof Error ? error.message : String(error)
+        const notFound = /CourseNotFound/i.test(message)
+        if (!notFound) {
+          console.error('Failed to verify course registration', error)
+        }
+        setRegistrationState(
+          notFound
+            ? {
+                status: 'missing',
+                message:
+                  'No on-chain course found for this ID. Register it to enable paid memberships.'
+              }
+            : {
+                status: 'error',
+                message: 'Unable to confirm on-chain course. Try again later.'
+              }
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [membershipAddress, membershipCourseId, membershipService])
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'administrators'
   })
+
+  const courseIdDisplay =
+    group.subscriptionId ??
+    (membershipCourseId ? membershipCourseId.toString() : 'Not assigned')
+  const canRegisterOnchain =
+    !!ownerAddress && address?.toLowerCase() === ownerAddress
+  const registrationActionLabel =
+    registrationState.status === 'error' ? 'Retry registration' : 'Register on-chain'
+  const registrationStatusText =
+    registrationState.status === 'registered'
+      ? 'Registered on-chain'
+      : registrationState.status === 'checking'
+        ? 'Checking…'
+        : registrationState.status === 'missing'
+          ? 'Not registered'
+          : 'Status unknown'
+  const registrationDescription =
+    registrationState.status === 'registered'
+      ? 'Course is active on-chain. You can update pricing or listing options whenever you are ready to sell memberships.'
+      : registrationState.status === 'checking'
+        ? 'Confirming on-chain course details…'
+        : registrationState.message ?? 'Unable to resolve course status.'
+  const showRegistrationButton =
+    canRegisterOnchain &&
+    membershipCourseId !== null &&
+    (registrationState.status === 'missing' ||
+      registrationState.status === 'error')
+
+  const handleRegisterCourse = useCallback(async () => {
+    if (!canRegisterOnchain) {
+      toast.error('Only the group owner can register the course on-chain.')
+      return
+    }
+    if (!membershipCourseId) {
+      toast.error('Membership course ID is not available.')
+      return
+    }
+    if (!publicClient) {
+      toast.error('Blockchain client unavailable. Please try again.')
+      return
+    }
+    if (!walletClient) {
+      toast.error('Connect your wallet to continue.')
+      return
+    }
+    if (!registrarAddress) {
+      toast.error('Registrar contract address not configured.')
+      return
+    }
+    if (!marketplaceAddress) {
+      toast.error('Marketplace contract address not configured.')
+      return
+    }
+    const ownerWalletAddress = owner?.walletAddress as `0x${string}` | undefined
+    if (!ownerWalletAddress) {
+      toast.error('Owner wallet address unavailable.')
+      return
+    }
+
+    try {
+      setIsRegisteringCourse(true)
+
+      const registrarMarketplace = (await publicClient.readContract({
+        address: registrarAddress as `0x${string}`,
+        abi: registrarAbi,
+        functionName: 'marketplace'
+      })) as `0x${string}`
+      if (
+        !registrarMarketplace ||
+        registrarMarketplace === '0x0000000000000000000000000000000000000000'
+      ) {
+        toast.error(
+          'Registrar is not configured with a marketplace address. Contact an admin.'
+        )
+        return
+      }
+
+      const priceValue =
+        typeof group.price === 'number' && Number.isFinite(group.price)
+          ? group.price
+          : 0
+      const membershipPriceAmount = parseUnits(priceValue.toString(), 6)
+
+      await publicClient.simulateContract({
+        address: registrarAddress as `0x${string}`,
+        abi: registrarAbi,
+        functionName: 'registerCourse',
+        args: [
+          membershipCourseId,
+          membershipPriceAmount,
+          [ownerWalletAddress],
+          [10000],
+          BigInt(MEMBERSHIP_DURATION_SECONDS),
+          BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS)
+        ],
+        account: address as `0x${string}`
+      })
+
+      const registrarService = new RegistrarService({
+        publicClient: publicClient as any,
+        walletClient: walletClient as any,
+        address: registrarAddress as `0x${string}`
+      })
+
+      const txHash = await registrarService.registerCourse(
+        membershipCourseId,
+        membershipPriceAmount,
+        [ownerWalletAddress],
+        [10000],
+        BigInt(MEMBERSHIP_DURATION_SECONDS),
+        BigInt(MEMBERSHIP_TRANSFER_COOLDOWN_SECONDS),
+        { account: address as `0x${string}` }
+      )
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash })
+      setRegistrationState({ status: 'registered' })
+      toast.success('Membership course registered on-chain.')
+    } catch (error: any) {
+      console.error('Failed to register course on-chain', error)
+      const message =
+        error?.shortMessage ??
+        error?.message ??
+        'Course registration failed. Review your configuration and try again.'
+      toast.error(message)
+    } finally {
+      setIsRegisteringCourse(false)
+    }
+  }, [
+    address,
+    canRegisterOnchain,
+    group.price,
+    marketplaceAddress,
+    membershipCourseId,
+    owner?.walletAddress,
+    publicClient,
+    registrarAddress,
+    walletClient
+  ])
 
   const mediaSnapshot = useMemo(
     () => ({
@@ -340,6 +574,48 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <div className='space-y-3 rounded-xl border border-border p-4'>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+            <div>
+              <h3 className='text-sm font-semibold text-foreground'>
+                Membership course
+              </h3>
+              <p className='text-xs text-muted-foreground'>
+                Register this group&apos;s course on-chain so you can enable paid memberships or marketplace listings later.
+              </p>
+            </div>
+            <div className='text-right text-xs'>
+              <div className='uppercase tracking-wide text-muted-foreground'>Course ID</div>
+              <div className='font-mono text-sm text-foreground'>{courseIdDisplay}</div>
+            </div>
+          </div>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+            <p className='text-xs text-muted-foreground sm:flex-1'>
+              {registrationDescription}
+            </p>
+            {showRegistrationButton ? (
+              <Button
+                type='button'
+                onClick={handleRegisterCourse}
+                disabled={isRegisteringCourse}
+              >
+                {isRegisteringCourse ? 'Registering…' : registrationActionLabel}
+              </Button>
+            ) : (
+              <span className='inline-flex items-center justify-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground'>
+                {registrationStatusText}
+              </span>
+            )}
+          </div>
+          {ownerAddress &&
+            !canRegisterOnchain &&
+            registrationState.status !== 'registered' && (
+              <p className='text-xs text-muted-foreground'>
+                Connect the owner wallet to register this course on-chain.
+              </p>
+            )}
+        </div>
+
         <FormField
           control={form.control}
           name='shortDescription'
