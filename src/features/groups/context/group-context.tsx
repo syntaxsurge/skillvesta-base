@@ -10,7 +10,10 @@ import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import { useCurrentUser } from '@/hooks/use-current-user'
 
-function normalizeEndsOn(value: number | undefined) {
+const DAY_MS = 24 * 60 * 60 * 1000
+const RENEWAL_WARNING_MS = 5 * DAY_MS
+
+function normalizeTimestamp(value: number | undefined | null) {
   if (!value || typeof value !== 'number') return undefined
   return value < 1_000_000_000_000 ? value * 1000 : value
 }
@@ -49,6 +52,14 @@ type GroupContextValue = {
     passExpiresAt?: number
     leftAt?: number
     joinedAt?: number
+  }
+  subscription: {
+    endsOn: number | null
+    lastPaidAt: number | null
+    lastPaymentTxHash: string | null
+    isExpired: boolean
+    isRenewalDue: boolean
+    daysRemaining: number | null
   }
 }
 
@@ -95,13 +106,23 @@ export function GroupProvider({
       return { status: 'missing' as const }
     }
 
-    const normalizedEndsOn = normalizeEndsOn(viewerState.group.endsOn)
-    const subscriptionActive =
+    const normalizedEndsOn = normalizeTimestamp(viewerState.group.endsOn)
+    const normalizedLastPaidAt = normalizeTimestamp(
+      viewerState.group.lastSubscriptionPaidAt
+    )
+    const now = Date.now()
+    const subscriptionExpired =
+      typeof normalizedEndsOn === 'number' ? normalizedEndsOn < now : false
+    const daysRemaining =
       typeof normalizedEndsOn === 'number'
-        ? normalizedEndsOn >= Date.now()
-        : true
+        ? Math.max(0, Math.ceil((normalizedEndsOn - now) / DAY_MS))
+        : null
+    const renewalWarning =
+      !subscriptionExpired &&
+      typeof normalizedEndsOn === 'number' &&
+      normalizedEndsOn - now <= RENEWAL_WARNING_MS
 
-    if (!subscriptionActive) {
+    if (subscriptionExpired && !viewerState.viewer.isOwner) {
       return { status: 'expired' as const }
     }
 
@@ -117,7 +138,10 @@ export function GroupProvider({
             ('private' as 'private' | 'public'),
           billingCadence:
             viewerState.group.billingCadence ??
-            (viewerState.group.price > 0 ? 'monthly' : 'free')
+            (viewerState.group.price > 0 ? 'monthly' : 'free'),
+          endsOn: normalizedEndsOn ?? viewerState.group.endsOn,
+          lastSubscriptionPaidAt:
+            normalizedLastPaidAt ?? viewerState.group.lastSubscriptionPaidAt
         },
         owner: viewerState.owner,
         memberCount: viewerState.memberCount ?? viewerState.group.memberNumber,
@@ -157,6 +181,14 @@ export function GroupProvider({
           passExpiresAt: viewerState.viewer.membership?.passExpiresAt,
           leftAt: viewerState.viewer.membership?.leftAt,
           joinedAt: viewerState.viewer.membership?.joinedAt
+        },
+        subscription: {
+          endsOn: normalizedEndsOn ?? null,
+          lastPaidAt: normalizedLastPaidAt ?? null,
+          lastPaymentTxHash: viewerState.group.lastSubscriptionTxHash ?? null,
+          isExpired: subscriptionExpired,
+          isRenewalDue: subscriptionExpired || renewalWarning,
+          daysRemaining
         }
       }
     }

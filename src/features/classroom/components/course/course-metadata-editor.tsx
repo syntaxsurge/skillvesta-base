@@ -13,6 +13,7 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger
@@ -30,12 +31,14 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { MediaDropzone } from '@/features/groups/components/media-dropzone'
 import { useApiMutation } from '@/hooks/use-api-mutation'
+import { useAppRouter } from '@/hooks/use-app-router'
 import { useResolvedMediaUrl } from '@/hooks/use-resolved-media-url'
 import { isStorageReference, toStorageSource } from '@/lib/media'
 
 type CourseMetadataEditorProps = {
   mode: 'create' | 'edit'
   courseId?: Id<'courses'>
+  groupId?: Id<'groups'>
   title: string
   description: string
   thumbnailUrl?: string
@@ -48,6 +51,7 @@ type CourseMetadataEditorProps = {
 export function CourseMetadataEditor({
   mode,
   courseId,
+  groupId,
   title,
   description,
   thumbnailUrl = '',
@@ -56,6 +60,7 @@ export function CourseMetadataEditor({
   onThumbnailChange,
   address
 }: CourseMetadataEditorProps) {
+  const router = useAppRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTitle, setEditTitle] = useState(title)
   const [editDescription, setEditDescription] = useState(description)
@@ -67,10 +72,14 @@ export function CourseMetadataEditor({
   const [thumbnailTab, setThumbnailTab] = useState<'upload' | 'link'>(
     thumbnailUrl && !isStorageReference(thumbnailUrl) ? 'link' : 'upload'
   )
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const generateUploadUrl = useMutation(api.media.generateUploadUrl)
   const { mutate: updateThumbnail, pending: thumbnailPending } =
     useApiMutation(api.courses.updateThumbnail)
+  const { mutate: deleteCourse, pending: deletePending } = useApiMutation(
+    api.courses.remove
+  )
 
   const { url: thumbnailPreviewUrl, loading: thumbnailPreviewLoading } =
     useResolvedMediaUrl(thumbnailSource || thumbnailUrl)
@@ -259,6 +268,41 @@ export function CourseMetadataEditor({
     onDescriptionChange(editDescription)
     setDialogOpen(false)
     toast.success('Course metadata updated.')
+  }
+
+  const handleDeleteCourse = async () => {
+    if (mode !== 'edit') return
+    if (!courseId) {
+      toast.error('Course identifier missing. Unable to delete.')
+      return
+    }
+    if (!address) {
+      toast.error('Connect your wallet to delete this course.')
+      return
+    }
+    if (!groupId) {
+      toast.error('Group identifier missing. Unable to delete course.')
+      return
+    }
+
+    try {
+      await deleteCourse({
+        courseId,
+        address
+      })
+      toast.success('Course deleted successfully.')
+      setDeleteDialogOpen(false)
+      setDialogOpen(false)
+      router.push(`/${groupId}/classroom`)
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to delete course', error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Unable to delete course. Please try again.'
+      )
+    }
   }
 
   if (mode === 'create') {
@@ -559,19 +603,57 @@ export function CourseMetadataEditor({
               </div>
             </div>
 
-            <div className='flex justify-end gap-3'>
-              <DialogClose asChild>
-                <Button variant='ghost' type='button'>
-                  Cancel
+            <div className='mt-6 flex flex-col gap-4 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between'>
+              <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    disabled={deletePending}
+                  >
+                    Delete course
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete this course?</DialogTitle>
+                    <DialogDescription>
+                      This action removes all modules, lessons, and related posts for this course. It cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className='gap-3 sm:justify-end'>
+                    <DialogClose asChild>
+                      <Button variant='ghost' type='button' disabled={deletePending}>
+                        Cancel
+                      </Button>
+                    </DialogClose>
+                    <Button
+                      type='button'
+                      variant='destructive'
+                      onClick={() => {
+                        void handleDeleteCourse()
+                      }}
+                      disabled={deletePending}
+                    >
+                      {deletePending ? 'Deleting…' : 'Delete course'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <div className='flex justify-end gap-3 sm:justify-end'>
+                <DialogClose asChild>
+                  <Button variant='ghost' type='button'>
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button
+                  type='button'
+                  onClick={handleSaveMetadata}
+                  disabled={!editTitle.trim()}
+                >
+                  Save Changes
                 </Button>
-              </DialogClose>
-              <Button
-                type='button'
-                onClick={handleSaveMetadata}
-                disabled={!editTitle.trim()}
-              >
-                Save Changes
-              </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

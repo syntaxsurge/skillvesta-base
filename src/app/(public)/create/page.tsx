@@ -305,7 +305,8 @@ export default function Create() {
         billingCadence:
           formattedPrice > 0 ? 'monthly' : values.billingCadence,
         price: formattedPrice,
-        subscriptionId: courseIdStr
+        subscriptionId: courseIdStr,
+        subscriptionPaymentTxHash: txHash ?? undefined
       } as any)
 
       toast.success('Your group is live!')

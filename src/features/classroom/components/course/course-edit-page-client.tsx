@@ -165,6 +165,7 @@ export function CourseEditPageClient({
         <CourseMetadataEditor
           mode='edit'
           courseId={course._id}
+          groupId={groupId}
           title={courseTitle}
           description={courseDescription}
           thumbnailUrl={courseThumbnailUrl}

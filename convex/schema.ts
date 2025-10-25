@@ -27,7 +27,9 @@ export default defineSchema({
     price: v.number(),
     memberNumber: v.number(),
     endsOn: v.optional(v.number()),
-    subscriptionId: v.optional(v.string())
+    subscriptionId: v.optional(v.string()),
+    lastSubscriptionPaidAt: v.optional(v.number()),
+    lastSubscriptionTxHash: v.optional(v.string())
   })
     .index('by_name', ['name'])
     .index('by_ownerId', ['ownerId'])
@@ -57,7 +59,8 @@ export default defineSchema({
     lessonId: v.optional(v.id('lessons'))
   })
     .index('by_title', ['title'])
-    .index('by_groupId', ['groupId']),
+    .index('by_groupId', ['groupId'])
+    .index('by_lessonId', ['lessonId']),
   comments: defineTable({
     postId: v.id('posts'),
     content: v.string(),

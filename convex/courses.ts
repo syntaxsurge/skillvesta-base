@@ -152,3 +152,50 @@ export const updateThumbnail = mutation({
     await ctx.db.patch(id, { thumbnailUrl })
   }
 })
+
+export const remove = mutation({
+  args: {
+    courseId: v.id('courses'),
+    address: v.string()
+  },
+  handler: async (ctx, { courseId, address }) => {
+    const user = await requireUserByWallet(ctx, address)
+    const course = await ctx.db.get(courseId)
+    if (!course) {
+      throw new Error('Course not found.')
+    }
+    const group = await ctx.db.get(course.groupId)
+    if (!group || group.ownerId !== user._id) {
+      throw new Error('Only the group owner can delete courses.')
+    }
+
+    const modules = await ctx.db
+      .query('modules')
+      .withIndex('by_courseId', q => q.eq('courseId', courseId))
+      .collect()
+
+    for (const module of modules) {
+      const lessons = await ctx.db
+        .query('lessons')
+        .withIndex('by_moduleId', q => q.eq('moduleId', module._id))
+        .collect()
+
+      for (const lesson of lessons) {
+        const posts = await ctx.db
+          .query('posts')
+          .withIndex('by_lessonId', q => q.eq('lessonId', lesson._id))
+          .collect()
+
+        for (const post of posts) {
+          await ctx.db.delete(post._id)
+        }
+
+        await ctx.db.delete(lesson._id)
+      }
+
+      await ctx.db.delete(module._id)
+    }
+
+    await ctx.db.delete(courseId)
+  }
+})

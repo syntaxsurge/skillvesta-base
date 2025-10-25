@@ -47,6 +47,24 @@ export const remove = mutation({
       throw new Error('Only the group owner can remove modules.')
     }
 
+    const lessons = await ctx.db
+      .query('lessons')
+      .withIndex('by_moduleId', q => q.eq('moduleId', moduleId))
+      .collect()
+
+    for (const lesson of lessons) {
+      const posts = await ctx.db
+        .query('posts')
+        .withIndex('by_lessonId', q => q.eq('lessonId', lesson._id))
+        .collect()
+
+      for (const post of posts) {
+        await ctx.db.delete(post._id)
+      }
+
+      await ctx.db.delete(lesson._id)
+    }
+
     await ctx.db.delete(moduleId)
   }
 })

@@ -280,7 +280,8 @@ export const create = mutation({
           shareBps: v.number()
         })
       )
-    )
+    ),
+    subscriptionPaymentTxHash: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const owner = await requireUserByWallet(ctx, args.ownerAddress)
@@ -311,6 +312,8 @@ export const create = mutation({
       ownerId: owner._id,
       subscriptionId,
       endsOn: now + DEFAULT_SUBSCRIPTION_DURATION_MS,
+      lastSubscriptionPaidAt: now,
+      lastSubscriptionTxHash: args.subscriptionPaymentTxHash,
       price,
       memberNumber: 1
     })
@@ -467,6 +470,39 @@ export const updateSettings = mutation({
     }
 
     await ctx.db.patch(args.id, patch)
+  }
+})
+
+export const renewSubscription = mutation({
+  args: {
+    groupId: v.id('groups'),
+    ownerAddress: v.string(),
+    paymentTxHash: v.optional(v.string())
+  },
+  handler: async (ctx, { groupId, ownerAddress, paymentTxHash }) => {
+    const owner = await requireUserByWallet(ctx, ownerAddress)
+    const group = await ctx.db.get(groupId)
+
+    if (!group) {
+      throw new Error('Group not found.')
+    }
+
+    if (group.ownerId !== owner._id) {
+      throw new Error('Only the group owner can renew this subscription.')
+    }
+
+    const now = Date.now()
+    const currentEndsOn = group.endsOn ?? 0
+    const baseline = currentEndsOn > now ? currentEndsOn : now
+    const nextEndsOn = baseline + DEFAULT_SUBSCRIPTION_DURATION_MS
+
+    await ctx.db.patch(groupId, {
+      endsOn: nextEndsOn,
+      lastSubscriptionPaidAt: now,
+      lastSubscriptionTxHash: paymentTxHash ?? group.lastSubscriptionTxHash
+    })
+
+    return { endsOn: nextEndsOn }
   }
 })
 

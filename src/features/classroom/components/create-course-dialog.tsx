@@ -83,6 +83,7 @@ export function CreateCourseDialog({ groupId, children }: CreateCourseDialogProp
         <div className='space-y-4'>
           <CourseMetadataEditor
             mode='create'
+            groupId={groupId}
             title={title}
             description={description}
             thumbnailUrl={thumbnailUrl}

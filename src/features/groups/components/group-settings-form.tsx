@@ -9,7 +9,7 @@ import { parseUnits } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { z } from 'zod'
 
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, RefreshCcw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -36,10 +36,14 @@ import { registrarAbi } from '@/lib/onchain/abi'
 import { RegistrarService } from '@/lib/onchain/services/registrarService'
 import { MembershipPassService } from '@/lib/onchain/services/membershipPassService'
 import { ACTIVE_CHAIN } from '@/lib/wagmi'
+import { SUBSCRIPTION_PRICE_LABEL } from '@/lib/pricing'
+import { formatTimestampRelative } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { useGroupContext } from '../context/group-context'
 import { resolveMembershipCourseId } from '../utils/membership'
 import { GroupMediaFields } from './group-media-fields'
 import { isValidMediaReference, normalizeMediaInput } from '../utils/media'
+import { useRenewSubscription } from '../hooks/use-renew-subscription'
 
 const administratorSchema = z.object({
   walletAddress: z
@@ -173,11 +177,12 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN.id })
-  const { owner, administrators: existingAdministrators, media } = useGroupContext()
+  const { owner, administrators: existingAdministrators, media, subscription } = useGroupContext()
   const updateSettings = useMutation(api.groups.updateSettings)
   const generateUploadUrl = useMutation(api.media.generateUploadUrl)
   const [isSaving, setIsSaving] = useState(false)
   const [isRegisteringCourse, setIsRegisteringCourse] = useState(false)
+  const { renew: triggerRenewSubscription, isRenewing: isSubscriptionRenewing } = useRenewSubscription()
   const membershipCourseId = useMemo(() => resolveMembershipCourseId(group), [group])
   const membershipAddress = MEMBERSHIP_CONTRACT_ADDRESS as `0x${string}` | ''
   const registrarAddress = REGISTRAR_CONTRACT_ADDRESS as `0x${string}` | ''
@@ -322,6 +327,45 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
     membershipCourseId !== null &&
     (registrationState.status === 'missing' ||
       registrationState.status === 'error')
+
+  const subscriptionRenewalLabel = subscription.endsOn
+    ? formatTimestampRelative(subscription.endsOn)
+    : 'Not scheduled'
+  const subscriptionLastPaidLabel = subscription.lastPaidAt
+    ? formatTimestampRelative(subscription.lastPaidAt)
+    : null
+  const subscriptionCardDescription = subscription.isExpired
+    ? 'Renew now to reactivate your community for another month.'
+    : subscription.isRenewalDue
+      ? 'Renew soon to avoid an interruption to your community access.'
+      : 'Your platform subscription is active.'
+  const subscriptionCardClasses = cn(
+    'space-y-3 rounded-xl border border-border p-4',
+    subscription.isExpired
+      ? 'border-destructive/40 bg-destructive/5'
+      : subscription.isRenewalDue
+        ? 'border-amber-500/30 bg-amber-500/10'
+        : 'border-border/60 bg-card/30'
+  )
+
+  const handleRenewSubscription = useCallback(async () => {
+    try {
+      const result = await triggerRenewSubscription()
+      toast.success(
+        `Subscription renewed. Next renewal ${
+          result.endsOn
+            ? formatTimestampRelative(result.endsOn)
+            : 'scheduled in 30 days'
+        }.`
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to renew the subscription. Please try again.'
+      )
+    }
+  }, [triggerRenewSubscription])
 
   const handleRegisterCourse = useCallback(async () => {
     if (!canRegisterOnchain) {
@@ -574,6 +618,44 @@ export function GroupSettingsForm({ group }: GroupSettingsFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <div className={subscriptionCardClasses}>
+          <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+            <div className='space-y-1'>
+              <h3 className='text-sm font-semibold text-foreground'>
+                Platform subscription
+              </h3>
+              <p className='text-xs text-muted-foreground'>
+                {subscriptionCardDescription} Pay {SUBSCRIPTION_PRICE_LABEL} to extend access for 30 days.
+              </p>
+            </div>
+            <div className='text-xs text-muted-foreground sm:text-right'>
+              <div className='font-mono text-sm text-foreground'>
+                {subscription.isExpired ? 'Expired' : 'Renews'} {subscriptionRenewalLabel}
+              </div>
+              {subscriptionLastPaidLabel && (
+                <div>Last paid {subscriptionLastPaidLabel}</div>
+              )}
+              {subscription.daysRemaining !== null && !subscription.isExpired && (
+                <div>
+                  {subscription.daysRemaining} day{subscription.daysRemaining === 1 ? '' : 's'} remaining
+                </div>
+              )}
+            </div>
+          </div>
+          <div className='flex flex-col gap-2 sm:flex-row sm:justify-end'>
+            <Button
+              type='button'
+              onClick={handleRenewSubscription}
+              disabled={isSubscriptionRenewing}
+              className='inline-flex items-center gap-2 self-start sm:self-auto'
+              variant={subscription.isExpired ? 'destructive' : 'default'}
+            >
+              <RefreshCcw className='h-4 w-4' />
+              {isSubscriptionRenewing ? 'Processing...' : 'Renew subscription'}
+            </Button>
+          </div>
+        </div>
+
         <div className='space-y-3 rounded-xl border border-border p-4'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
             <div>

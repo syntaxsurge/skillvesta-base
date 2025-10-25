@@ -55,6 +55,16 @@ export const remove = mutation({
     if (!group || group.ownerId !== user._id) {
       throw new Error('Only the group owner can remove lessons.')
     }
+
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_lessonId', q => q.eq('lessonId', lessonId))
+      .collect()
+
+    for (const post of posts) {
+      await ctx.db.delete(post._id)
+    }
+
     await ctx.db.delete(lessonId)
   }
 })
