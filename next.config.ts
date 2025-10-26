@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
       {
         source: '/demo-video',
         destination:
-          'https://youtu.be/Ypacq_338a0',
+          'https://youtu.be/cacGGPPOtFU',
         permanent: false
       }
     ]

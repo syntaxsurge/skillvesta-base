@@ -2,7 +2,7 @@
 
 Live app: [skillvesta.com](https://skillvesta.com/)
 
-Demo video: [YouTube](https://youtu.be/Ypacq_338a0)
+Demo video: [YouTube](https://youtu.be/cacGGPPOtFU)
 
 Skillvesta lets creators run paid communities and courses on Base using portable onchain memberships with a built-in marketplace and clear collaborator payouts — all inside one app.
 
