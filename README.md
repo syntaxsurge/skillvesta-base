@@ -1,27 +1,27 @@
 # Skillvesta: Onchain Courses and Memberships for Creators
 
-Live app: https://skillvesta.com/
+Live app: [skillvesta.com](https://skillvesta.com/)
 
-Demo video: https://youtu.be/Ypacq_338a0
+Demo video: [YouTube](https://youtu.be/Ypacq_338a0)
 
 Skillvesta lets creators run paid communities and courses on Base using portable onchain memberships with a built-in marketplace and clear collaborator payouts — all inside one app.
 
-What it solves
+## What It Solves
 - One place to sell access, teach, and share earnings with transparent records.
 - Portable ERC‑1155 passes with expiry and transfer cooldowns to curb abuse.
 - Free communities grant access without minting a pass (nothing to resell).
 
-Who it’s for
+## Who It’s For
 - Creators and small education teams who want ownership, portability, and simple revenue splits.
 
-How it works (at a glance)
+## How It Works
 - Create a paid community (sets price, duration, cooldown). The app collects a small USDC platform fee and registers a course on chain.
 - Create a course, add modules and lessons, and safely embed video (YouTube links are normalized to embeds).
 - Members join with USDC on Base. If they just joined, marketplace listing is blocked until cooldown ends.
 - My Memberships shows pass expiry and cooldown. Listing stays disabled until eligible.
 - Discover and join free groups instantly (no pass minted, not listable on the marketplace).
 
-Demo chapters
+## Demo Chapters
 1. Connect wallet (MetaMask used in demo; Base Smart Wallet also works)
 2. Create a paid community and land on About (course ID + explorer link)
 3. Classroom: create course, modules, lessons (demo uses sample YouTube playlist content)
@@ -31,7 +31,7 @@ Demo chapters
 7. Feed: admin post; member likes/comments
 8. Discover: join a free group; browse its feed and classroom
 
-Core smart contracts
+## Core Smart Contracts
 - `MembershipPass1155`: USDC-gated access passes per course
 - `SplitPayout`: non-custodial revenue sharing for collaborators
 - `Badge1155`: soulbound proof-of-learning badges
@@ -46,7 +46,7 @@ Core smart contracts
 - Production-ready Hardhat workspace under `blockchain/` powering the contract
   suite
 
-Product capabilities
+## Product Capabilities
 - Paid and free communities, with gating handled by onchain state and group visibility.
 - Marketplace listing, buying, and renewals with cooldown logic (UI blocks listing while cooldown settles).
 - My Memberships view showing pass expiry, cooldown, and listing eligibility.
