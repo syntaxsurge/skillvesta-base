@@ -1,5 +1,37 @@
-# Skillvesta On-Chain Learning Platform
+# Skillvesta: Onchain Courses and Memberships for Creators
 
+Live app: https://skillvesta.com/
+
+Demo video: https://youtu.be/Ypacq_338a0
+
+Skillvesta lets creators run paid communities and courses on Base using portable onchain memberships with a built-in marketplace and clear collaborator payouts — all inside one app.
+
+What it solves
+- One place to sell access, teach, and share earnings with transparent records.
+- Portable ERC‑1155 passes with expiry and transfer cooldowns to curb abuse.
+- Free communities grant access without minting a pass (nothing to resell).
+
+Who it’s for
+- Creators and small education teams who want ownership, portability, and simple revenue splits.
+
+How it works (at a glance)
+- Create a paid community (sets price, duration, cooldown). The app collects a small USDC platform fee and registers a course on chain.
+- Create a course, add modules and lessons, and safely embed video (YouTube links are normalized to embeds).
+- Members join with USDC on Base. If they just joined, marketplace listing is blocked until cooldown ends.
+- My Memberships shows pass expiry and cooldown. Listing stays disabled until eligible.
+- Discover and join free groups instantly (no pass minted, not listable on the marketplace).
+
+Demo chapters
+1. Connect wallet (MetaMask used in demo; Base Smart Wallet also works)
+2. Create a paid community and land on About (course ID + explorer link)
+3. Classroom: create course, modules, lessons (demo uses sample YouTube playlist content)
+4. Join paid group from a second wallet; tabs unlock
+5. Marketplace: List Your Membership shows transfer cooldown
+6. My Memberships: see expiry and cooldown; listing disabled
+7. Feed: admin post; member likes/comments
+8. Discover: join a free group; browse its feed and classroom
+
+Core smart contracts
 - `MembershipPass1155`: USDC-gated access passes per course
 - `SplitPayout`: non-custodial revenue sharing for collaborators
 - `Badge1155`: soulbound proof-of-learning badges
@@ -13,6 +45,13 @@
 - Course access and payouts fully on-chain (USDC on Base)
 - Production-ready Hardhat workspace under `blockchain/` powering the contract
   suite
+
+Product capabilities
+- Paid and free communities, with gating handled by onchain state and group visibility.
+- Marketplace listing, buying, and renewals with cooldown logic (UI blocks listing while cooldown settles).
+- My Memberships view showing pass expiry, cooldown, and listing eligibility.
+- Classroom with course grid, modules/lessons, safe video embeds, and live editing for owners.
+- Feed with posts, likes, and comments; real-time updates via Convex.
 
 ## Prerequisites
 
@@ -51,6 +90,9 @@ NEXT_PUBLIC_PLATFORM_TREASURY_ADDRESS="0xYourTreasuryWallet"
 NEXT_PUBLIC_MEMBERSHIP_CONTRACT_ADDRESS="0xYourMembershipPass1155"
 NEXT_PUBLIC_BADGE_CONTRACT_ADDRESS="0xYourBadge1155"
 NEXT_PUBLIC_REGISTRAR_CONTRACT_ADDRESS="0xYourRegistrar"
+
+# Optional marketplace (enable listing/renew flows)
+NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS="0xYourMembershipMarketplace"
 ```
 
 > **Tip:** When deploying on Base mainnet swap the chain id (8453) and USDC
