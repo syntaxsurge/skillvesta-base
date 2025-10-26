@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
       {
         source: '/demo-video',
         destination:
-          'https://cdn.shortyearn.com/syntaxsurge.com/wp-content/uploads/2025/05/Demo%20Backg-3dv106.mp4',
+          'https://youtu.be/Ypacq_338a0',
         permanent: false
       }
     ]
